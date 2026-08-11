@@ -79,8 +79,11 @@ export function setupSocketHandlers(io) {
       io.to(result.room.id).emit('room:state', result.snapshot);
     });
 
-    socket.on('room:leave', () => {
-      if (!roomId) return;
+    socket.on('room:leave', (_payload, cb) => {
+      if (!roomId) {
+        cb?.({ error: 'Not in a room' });
+        return;
+      }
       const result = leaveRoom(roomId, playerId);
       socket.leave(roomId);
       if (result?.snapshot) {
@@ -89,6 +92,7 @@ export function setupSocketHandlers(io) {
       clearBotTimer(roomId);
       clearTurnTimeout(roomId);
       roomId = null;
+      cb?.({ ok: true, snapshot: result?.snapshot || null });
     });
 
     socket.on('room:addBot', (_payload, cb) => {

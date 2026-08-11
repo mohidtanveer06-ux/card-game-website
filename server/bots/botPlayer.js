@@ -6,6 +6,7 @@ import {
   chooseBhabhiBotMove,
   sanitizeBhabhiState,
   bhabhiCurrentPlayer,
+  buildBhabhiStandings,
 } from '../games/bhabhiEngine.js';
 import {
   createBluffGame,
@@ -57,7 +58,7 @@ function handleBhabhiBot(io, room, game) {
 
   const move = chooseBhabhiBotMove(game, currentId);
   if (move) {
-    playCard(game, currentId, move.id);
+    playCard(game, room, currentId, move.id);
     broadcastGame(io, room);
     emitLog(io, room, game);
     if (game.phase === 'ended') {
@@ -78,7 +79,7 @@ function handleBluffBot(io, room, game) {
     );
     if (candidates.length > 0 && shouldBotCallBluff(game)) {
       const bot = candidates[Math.floor(Math.random() * candidates.length)];
-      callBluff(game, bot.id);
+      callBluff(game, room, bot.id);
       broadcastGame(io, room);
       emitLog(io, room, game);
       if (game.phase === 'ended') {
@@ -104,7 +105,7 @@ function handleBluffBot(io, room, game) {
 
   const move = chooseBluffBotPlay(game, currentId);
   if (move) {
-    playBluff(game, currentId, move.cardIds, move.declaredRank);
+    playBluff(game, room, currentId, move.cardIds, move.declaredRank);
     broadcastGame(io, room);
     emitLog(io, room, game);
     if (game.phase === 'ended') {
@@ -136,13 +137,13 @@ function scheduleTurnTimeout(io, room, game) {
 
     if (game.type === 'bhabhi') {
       const pid = bhabhiCurrentPlayer(game);
-      autoPlayBhabhi(game, pid);
+      autoPlayBhabhi(game, room, pid);
     } else if (game.type === 'bluff') {
       if (game.phase === 'challengeWindow') {
         passBluff(game);
       } else {
         const pid = bluffCurrentPlayer(game);
-        autoPlayBluff(game, pid);
+        autoPlayBluff(game, room, pid);
       }
     }
 
@@ -190,13 +191,17 @@ function handleGameEnd(io, room) {
   const game = room.game;
   room.phase = 'ended';
 
-  io.to(room.id).emit('game:ended', {
+  const payload = {
     gameMode: room.gameMode,
     winner: game.winner,
     bhabhi: game.bhabhi,
     escapeOrder: game.escapeOrder || [],
     playerNames: game.playerNames,
-  });
+    standings: room.gameMode === 'bhabhi' ? buildBhabhiStandings(game, room) : [],
+  };
+
+  io.to(room.id).emit('room:state', sanitizeRoom(room));
+  io.to(room.id).emit('game:ended', payload);
 }
 
 function startGame(io, room) {

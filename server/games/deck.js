@@ -1,6 +1,6 @@
 export const SUITS = ['spades', 'hearts', 'diamonds', 'clubs'];
 export const SUIT_SYMBOLS = { spades: '♠', hearts: '♥', diamonds: '♦', clubs: '♣' };
-export const RANKS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+export const RANKS = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
 export const RANK_VALUES = Object.fromEntries(RANKS.map((r, i) => [r, i]));
 
 export function createDeck() {
@@ -42,7 +42,7 @@ export function sortHand(hand) {
   const suitOrder = ['spades', 'hearts', 'diamonds', 'clubs'];
   return [...hand].sort((a, b) => {
     const suitDiff = suitOrder.indexOf(a.suit) - suitOrder.indexOf(b.suit);
-    return suitDiff !== 0 ? suitDiff : a.value - b.value;
+    return suitDiff !== 0 ? suitDiff : b.value - a.value;
   });
 }
 
@@ -55,7 +55,7 @@ export function cardLabel(card) {
 }
 
 export function compareSameSuit(a, b) {
-  return a.value - b.value;
+  return b.value - a.value;
 }
 
 export function findCard(hand, cardId) {
@@ -78,7 +78,7 @@ export function findAceOfSpades(hands) {
   return null;
 }
 
-export const BLUFF_RANKS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+export const BLUFF_RANKS = ['A', 'K', 'Q', 'J', '10', '9', '8', '7', '6', '5', '4', '3', '2'];
 export const BLUFF_RANK_ORDER = Object.fromEntries(BLUFF_RANKS.map((rank, index) => [rank, index]));
 
 export function nextBluffRank(rank) {

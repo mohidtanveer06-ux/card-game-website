@@ -330,11 +330,13 @@
 
 .playing-card.playable {
   cursor: pointer;
+  border-color: #f9d949;
+  background: linear-gradient(180deg, #ffffff 0%, #fff5d4 100%);
 }
 
 .playing-card.playable:hover {
-  transform: translateY(-8px);
-  box-shadow: 0 8px 16px rgba(201, 162, 39, 0.4);
+  transform: translateY(-10px);
+  box-shadow: 0 10px 20px rgba(201, 162, 39, 0.5);
 }
 
 .playing-card.selected {

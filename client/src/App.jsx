@@ -25,6 +25,7 @@ function EndGameModal({ gameEnded, gameState, myId, isHost, onRematch, onLeave }
   const isBhabhi = gameEnded.gameMode === 'bhabhi';
   const iAmBhabhi = gameEnded.bhabhi === myId;
   const iWon = gameEnded.winner === myId;
+  const standings = gameEnded.standings || [];
 
   return (
     <div className="end-modal-overlay">
@@ -40,10 +41,16 @@ function EndGameModal({ gameEnded, gameState, myId, isHost, onRematch, onLeave }
                 </p>
               </>
             )}
-            {gameEnded.escapeOrder?.length > 0 && (
-              <p style={{ fontSize: '0.875rem', opacity: 0.85 }}>
-                First away: {names[gameEnded.escapeOrder[0]]}
-              </p>
+            {standings.length > 0 && (
+              <div style={{ marginTop: '0.75rem', textAlign: 'left', display: 'inline-block' }}>
+                <p style={{ fontWeight: 700, marginBottom: '0.35rem' }}>Results</p>
+                {standings.map((entry) => (
+                  <p key={entry.playerId} style={{ margin: '0.2rem 0', fontSize: '0.9rem' }}>
+                    <strong>{entry.label}</strong>: {entry.name || names[entry.playerId] || 'Player'}
+                    {entry.isBhabhi ? ' — Bhabhi' : ''}
+                  </p>
+                ))}
+              </div>
             )}
             {iAmBhabhi && <p style={{ color: '#e74c3c' }}>Better luck next time!</p>}
             {!iAmBhabhi && gameEnded.escapeOrder?.includes(myId) && (
@@ -174,18 +181,43 @@ export default function App() {
     }
   };
 
-  const handleCopyCode = () => {
-    const text = `Join MT Cards Online — Code: ${socket.roomState?.code}`;
-    navigator.clipboard?.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-    addToast('Room code copied!', 'success');
+  const handleCopyCode = async () => {
+    const code = socket.roomState?.code;
+    if (!code) {
+      addToast('No room code available to copy', 'error');
+      return;
+    }
+
+    const text = code;
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+      }
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+      addToast('Room code copied!', 'success');
+    } catch (err) {
+      addToast('Unable to copy code', 'error');
+    }
   };
 
   const handleLeave = async () => {
-    await socket.leaveRoom();
-    setScreen(SCREENS.MODE);
-    setLobbyError(null);
+    const res = await socket.leaveRoom();
+    if (!res?.error) {
+      setScreen(SCREENS.MODE);
+      setLobbyError(null);
+    } else {
+      addToast(res.error || 'Unable to leave room', 'error');
+    }
   };
 
   const handleStart = async () => {

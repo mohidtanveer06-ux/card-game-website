@@ -33,7 +33,7 @@ export function createBhabhiGame(room, playerIds = room.players.map((p) => p.id)
 }
 
 export function attachPlayerNames(game, room) {
-  game.playerNames = room.players.map((p) => p.name);
+  game.playerNames = Object.fromEntries(room.players.map((p) => [p.id, p.name]));
 }
 
 function activePlayers(game) {
@@ -139,14 +139,46 @@ function resolveThullaTrick(game, room, thullaPlayerId) {
     type: 'warning',
   });
 
-  game.currentTrick = { leaderId: thullaPlayerId, ledSuit: null, plays: [] };
-  game.currentTurnIndex = game.turnOrder.indexOf(thullaPlayerId);
+  game.currentTrick = { leaderId: pickupPlayerId, ledSuit: null, plays: [] };
+  game.currentTurnIndex = game.turnOrder.indexOf(pickupPlayerId);
   game.isFirstTrick = false;
   game.turnDeadline = Date.now() + TURN_TIMEOUT_MS;
 }
 
 function getPlayerName(room, playerId) {
   return room.players.find((p) => p.id === playerId)?.name || 'Player';
+}
+
+export function buildBhabhiStandings(game, room) {
+  const placements = [];
+  for (const playerId of game.escapeOrder || []) {
+    placements.push({
+      playerId,
+      name: getPlayerName(room, playerId),
+      position: placements.length + 1,
+      label: getPositionLabel(placements.length + 1),
+      isBhabhi: false,
+    });
+  }
+
+  if (game.bhabhi && !placements.some((entry) => entry.playerId === game.bhabhi)) {
+    placements.push({
+      playerId: game.bhabhi,
+      name: getPlayerName(room, game.bhabhi),
+      position: placements.length + 1,
+      label: getPositionLabel(placements.length + 1),
+      isBhabhi: true,
+    });
+  }
+
+  return placements;
+}
+
+function getPositionLabel(position) {
+  if (position === 1) return '1st';
+  if (position === 2) return '2nd';
+  if (position === 3) return '3rd';
+  return `${position}th`;
 }
 
 export function getCurrentPlayerId(game) {

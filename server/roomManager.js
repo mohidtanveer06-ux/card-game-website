@@ -146,6 +146,11 @@ export function leaveRoom(roomId, playerId) {
     room.hostId = (nextHuman || room.players[0]).id;
   }
 
+  if (room.phase === 'ended') {
+    room.phase = 'waiting';
+    room.game = null;
+  }
+
   if (room.phase === 'waiting') {
     scheduleRoomCleanup(room);
   }

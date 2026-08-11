@@ -5,6 +5,7 @@ const SOCKET_URL = import.meta.env.DEV ? 'http://localhost:3000' : undefined;
 
 export function useSocket() {
   const socketRef = useRef(null);
+  const connectPromiseRef = useRef(null);
   const [connected, setConnected] = useState(false);
   const [playerId, setPlayerId] = useState(null);
   const [roomState, setRoomState] = useState(null);
@@ -13,6 +14,38 @@ export function useSocket() {
   const [gameEnded, setGameEnded] = useState(null);
   const [lastError, setLastError] = useState(null);
 
+  const waitForConnection = useCallback(() => {
+    const socket = socketRef.current;
+    if (!socket) return Promise.resolve(false);
+    if (socket.connected) return Promise.resolve(true);
+    if (connectPromiseRef.current) return connectPromiseRef.current;
+
+    connectPromiseRef.current = new Promise((resolve) => {
+      let settled = false;
+      const cleanup = () => {
+        socket.off('connect', onConnect);
+        socket.off('connect_error', onConnectError);
+      };
+      const finish = (value) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        resolve(value);
+        connectPromiseRef.current = null;
+      };
+      const onConnect = () => finish(true);
+      const onConnectError = () => finish(false);
+
+      socket.once('connect', onConnect);
+      socket.once('connect_error', onConnectError);
+      if (socket.disconnected) {
+        socket.connect();
+      }
+    });
+
+    return connectPromiseRef.current;
+  }, []);
+
   useEffect(() => {
     const socket = io(SOCKET_URL, { transports: ['websocket', 'polling'] });
     socketRef.current = socket;
@@ -20,8 +53,12 @@ export function useSocket() {
     socket.on('connect', () => {
       setConnected(true);
       setPlayerId(socket.id);
+      connectPromiseRef.current = null;
     });
-    socket.on('disconnect', () => setConnected(false));
+    socket.on('disconnect', () => {
+      setConnected(false);
+      connectPromiseRef.current = null;
+    });
 
     socket.on('room:state', (state) => {
       setRoomState(state);
@@ -61,16 +98,26 @@ export function useSocket() {
     };
   }, []);
 
-  const emit = useCallback((event, data, cb) => {
-    return new Promise((resolve) => {
-      const socket = socketRef.current;
-      if (!socket || !socket.connected) {
+  const emit = useCallback(async (event, data, cb) => {
+    const socket = socketRef.current;
+    if (!socket) {
+      const response = { error: 'Socket not connected' };
+      cb?.(response);
+      setLastError(response.error);
+      return response;
+    }
+
+    if (!socket.connected) {
+      const connected = await waitForConnection();
+      if (!connected) {
         const response = { error: 'Socket not connected' };
         cb?.(response);
         setLastError(response.error);
-        resolve(response);
-        return;
+        return response;
       }
+    }
+
+    return new Promise((resolve) => {
       let settled = false;
       const timeout = setTimeout(() => {
         if (settled) return;
@@ -90,7 +137,7 @@ export function useSocket() {
         resolve(response);
       });
     });
-  }, []);
+  }, [waitForConnection]);
 
   const setProfile = useCallback(
     (profile) => emit('profile:set', profile),
@@ -107,7 +154,16 @@ export function useSocket() {
     [emit]
   );
 
-  const leaveRoom = useCallback(() => emit('room:leave'), [emit]);
+  const leaveRoom = useCallback(async () => {
+    const response = await emit('room:leave');
+    if (!response?.error) {
+      setRoomState(null);
+      setGameState(null);
+      setGameEnded(null);
+      setGameLog([]);
+    }
+    return response;
+  }, [emit]);
 
   const addBot = useCallback(() => emit('room:addBot'), [emit]);
 

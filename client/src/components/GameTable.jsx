@@ -70,6 +70,13 @@ export default function GameTable({
     return a.value - b.value;
   });
 
+  const currentPlayerName = playerNames[gameState.currentPlayerId] || 'Player';
+  const isMyTurn = gameState.isMyTurn;
+  const turnStatus = isMyTurn ? 'Your turn' : `Waiting for ${currentPlayerName}`;
+  const hintMessage = gameState.type === 'bhabhi' && isMyTurn
+    ? `Only ${gameState.playableCardIds?.length || 0} card(s) are playable now.`
+    : '';
+
   return (
     <div className="game-layout">
       <header className="game-header">
@@ -92,6 +99,20 @@ export default function GameTable({
           </button>
         </div>
       </header>
+      <div style={{ padding: '0.75rem 1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(10, 18, 34, 0.9)', borderBottom: '1px solid rgba(201, 162, 39, 0.15)' }}>
+        <span style={{ color: '#fff', fontSize: '0.95rem' }}>{turnStatus}</span>
+        {hintMessage ? (
+          <span style={{ color: '#f9d949', fontSize: '0.85rem' }}>{hintMessage}</span>
+        ) : null}
+      </div>
+      <div style={{ padding: '0.75rem 1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(10, 18, 34, 0.9)', borderBottom: '1px solid rgba(201, 162, 39, 0.15)' }}>
+        <span style={{ color: '#fff', fontSize: '0.95rem' }}>{turnStatus}</span>
+        {gameState.type === 'bhabhi' && isMyTurn && (
+          <span style={{ color: '#c9a227', fontSize: '0.85rem' }}>
+            Playable: {gameState.playableCardIds?.length || 0} card(s)
+          </span>
+        )}
+      </div>
 
       <div className="game-main">
         <ActionLog entries={gameLog} />
