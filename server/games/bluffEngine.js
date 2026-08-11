@@ -3,7 +3,7 @@ import { createDeck, shuffleDeck, dealEvenly, sortHand, formatCard, nextBluffRan
 const TURN_TIMEOUT_MS = 15000;
 const CHALLENGE_WINDOW_MS = 5000;
 
-export function createBluffGame(room, playerIds) {
+export function createBluffGame(room, playerIds = room.players.map((p) => p.id)) {
   const deck = shuffleDeck(createDeck());
   const hands = dealEvenly(deck, playerIds);
   for (const id of playerIds) {
@@ -13,6 +13,7 @@ export function createBluffGame(room, playerIds) {
   const turnOrder = room.players.map((p) => p.id);
 
   return {
+    type: 'bluff',
     mode: 'bluff',
     phase: 'playing',
     hands,
@@ -176,12 +177,20 @@ export function sanitizeBluffState(game, room, viewerId) {
     isHost: p.isHost,
   }));
 
+  const currentPlayerId = getCurrentPlayerId(game);
+  const isMyTurn = currentPlayerId === viewerId;
+  const handCounts = Object.fromEntries(room.players.map((p) => [p.id, (game.hands[p.id] || []).length]));
+
   return {
+    type: 'bluff',
     mode: 'bluff',
     phase: game.phase,
     players,
     myHand: game.hands[viewerId] || [],
-    currentPlayerId: getCurrentPlayerId(game),
+    currentPlayerId,
+    currentTurnPlayerId: currentPlayerId,
+    isMyTurn,
+    handCounts,
     requiredRank: game.requiredRank,
     centerPileCount: game.centerPile.length,
     lastPlay: game.lastPlay

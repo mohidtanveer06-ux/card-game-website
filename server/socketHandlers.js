@@ -158,7 +158,7 @@ export function setupSocketHandlers(io) {
         cb?.({ error: 'Invalid game state' });
         return;
       }
-      const result = playCard(room.game, playerId, cardId);
+      const result = playCard(room.game, room, playerId, cardId);
       if (result.error) {
         cb?.({ error: result.error });
         socket.emit('game:log', { message: result.error, type: 'error' });
@@ -180,7 +180,7 @@ export function setupSocketHandlers(io) {
         cb?.({ error: 'Invalid game state' });
         return;
       }
-      const result = playBluff(room.game, playerId, cardIds, declaredRank);
+      const result = playBluff(room.game, room, playerId, cardIds, declaredRank);
       if (result.error) {
         cb?.({ error: result.error });
         socket.emit('game:log', { message: result.error, type: 'error' });
@@ -202,7 +202,7 @@ export function setupSocketHandlers(io) {
         cb?.({ error: 'Invalid game state' });
         return;
       }
-      const result = callBluff(room.game, playerId);
+      const result = callBluff(room.game, room, playerId);
       if (result.error) {
         cb?.({ error: result.error });
         return;

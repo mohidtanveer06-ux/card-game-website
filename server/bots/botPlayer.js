@@ -160,8 +160,9 @@ function scheduleTurnTimeout(io, room, game) {
 }
 
 function sanitizeGame(game, viewerId, room) {
-  if (game.type === 'bhabhi') return sanitizeBhabhiState(game, viewerId, room);
-  return sanitizeBluffState(game, viewerId, room);
+  const type = game.type || game.mode;
+  if (type === 'bhabhi') return sanitizeBhabhiState(game, room, viewerId);
+  return sanitizeBluffState(game, room, viewerId);
 }
 
 function broadcastGame(io, room) {
@@ -176,7 +177,8 @@ function broadcastGame(io, room) {
 }
 
 function emitLog(io, room, game) {
-  const last = game.log[game.log.length - 1];
+  const logs = game.logs || game.log || [];
+  const last = logs[logs.length - 1];
   if (last) {
     io.to(room.id).emit('game:log', last);
   }
@@ -198,12 +200,13 @@ function handleGameEnd(io, room) {
 }
 
 function startGame(io, room) {
+  const playerIds = room.players.map((p) => p.id);
   let game;
   if (room.gameMode === 'bhabhi') {
-    game = createBhabhiGame(room);
+    game = createBhabhiGame(room, playerIds);
     attachBhabhiNames(game, room);
   } else {
-    game = createBluffGame(room);
+    game = createBluffGame(room, playerIds);
     attachBluffNames(game, room);
   }
 

@@ -2,7 +2,7 @@ import { createDeck, shuffleDeck, dealEvenly, sortHand, formatCard, findAceOfSpa
 
 const TURN_TIMEOUT_MS = 15000;
 
-export function createBhabhiGame(room, playerIds) {
+export function createBhabhiGame(room, playerIds = room.players.map((p) => p.id)) {
   const deck = shuffleDeck(createDeck());
   const hands = dealEvenly(deck, playerIds);
   for (const id of playerIds) {
@@ -14,6 +14,7 @@ export function createBhabhiGame(room, playerIds) {
   const aceIndex = turnOrder.indexOf(aceHolder);
 
   return {
+    type: 'bhabhi',
     mode: 'bhabhi',
     phase: 'playing',
     hands,
@@ -250,14 +251,21 @@ export function sanitizeBhabhiState(game, room, viewerId) {
   const myHand = game.hands[viewerId] || [];
   const currentPlayerId = getCurrentPlayerId(game);
   const legalPlays = currentPlayerId === viewerId ? getLegalPlays(game, viewerId) : [];
+  const isMyTurn = currentPlayerId === viewerId;
+  const handCounts = Object.fromEntries(room.players.map((p) => [p.id, (game.hands[p.id] || []).length]));
 
   return {
+    type: 'bhabhi',
     mode: 'bhabhi',
     phase: game.phase,
     players,
     myHand,
     legalPlays,
+    playableCardIds: legalPlays,
+    isMyTurn,
     currentPlayerId,
+    currentTurnPlayerId: currentPlayerId,
+    handCounts,
     currentTrick: game.currentTrick,
     discardCount: game.discardPile.length,
     gotAway: game.gotAway,
