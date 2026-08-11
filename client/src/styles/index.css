@@ -1,0 +1,45 @@
+@import 'tailwindcss';
+@import './casino.css';
+
+@theme {
+  --color-felt: #0d4a2e;
+  --color-slate-dark: #1a1a2e;
+  --color-gold: #c9a227;
+  --color-cream: #f5f0e1;
+  --font-heading: 'Cinzel', serif;
+  --font-body: 'Inter', sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100vh;
+  margin: 0;
+}
+
+body {
+  font-family: var(--font-body);
+  background: linear-gradient(160deg, #0a1628 0%, var(--color-slate-dark) 40%, #0d2818 100%);
+  color: var(--color-cream);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-heading);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
