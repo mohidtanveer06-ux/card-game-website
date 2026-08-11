@@ -131,14 +131,22 @@ export default function App() {
 
   const handleProfileContinue = async () => {
     saveProfile(profile);
-    await socket.setProfile(profile);
     setScreen(SCREENS.MODE);
+    const res = await socket.setProfile(profile);
+    if (res?.error) {
+      addToast(res.error, 'error');
+    }
   };
 
   const handleCreate = async (opts) => {
     setLoading(true);
     setLobbyError(null);
-    await socket.setProfile(profile);
+    const profileRes = await socket.setProfile(profile);
+    if (profileRes?.error) {
+      setLoading(false);
+      setLobbyError(profileRes.error);
+      return;
+    }
     const res = await socket.createRoom(opts);
     setLoading(false);
     if (res?.error) {
@@ -151,7 +159,12 @@ export default function App() {
   const handleJoin = async (code) => {
     setLoading(true);
     setLobbyError(null);
-    await socket.setProfile(profile);
+    const profileRes = await socket.setProfile(profile);
+    if (profileRes?.error) {
+      setLoading(false);
+      setLobbyError(profileRes.error);
+      return;
+    }
     const res = await socket.joinRoom(code);
     setLoading(false);
     if (res?.error) {
@@ -176,10 +189,22 @@ export default function App() {
   };
 
   const handleStart = async () => {
+    if (!socket.roomState || socket.roomState.phase !== 'waiting') {
+      addToast('Cannot start: room is not in waiting state', 'error');
+      return;
+    }
     setLoading(true);
-    play('shuffle');
-    await socket.startGame();
-    setLoading(false);
+    try {
+      play('shuffle');
+      const res = await socket.startGame();
+      if (res?.error) {
+        addToast(res.error, 'error');
+      }
+    } catch (error) {
+      addToast('Unable to start game', 'error');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleRematch = async () => {
@@ -210,6 +235,7 @@ export default function App() {
         profile={profile}
         onChange={setProfile}
         onContinue={handleProfileContinue}
+        connected={socket.connected}
       />
     );
   }
@@ -234,6 +260,7 @@ export default function App() {
         onBack={() => setScreen(SCREENS.MODE)}
         loading={loading}
         error={lobbyError}
+        connected={socket.connected}
       />
     );
   }

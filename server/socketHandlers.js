@@ -30,12 +30,13 @@ export function setupSocketHandlers(io) {
     let playerId = socket.id;
     let roomId = null;
 
-    socket.on('profile:set', ({ name, avatarId }) => {
+    socket.on('profile:set', ({ name, avatarId }, cb) => {
       profiles.set(socket.id, {
         id: socket.id,
         name: (name || '').trim().slice(0, 16),
         avatarId: avatarId || '0',
       });
+      cb?.({ ok: true });
     });
 
     socket.on('room:create', ({ gameMode, maxPlayers }, cb) => {
@@ -105,27 +106,33 @@ export function setupSocketHandlers(io) {
     });
 
     socket.on('room:start', (_payload, cb) => {
-      const room = getRoom(roomId);
-      if (!room) {
-        cb?.({ error: 'Room not found' });
-        return;
-      }
-      if (room.hostId !== playerId) {
-        cb?.({ error: 'Only host can start' });
-        return;
-      }
-      if (room.players.length < 3) {
-        cb?.({ error: 'Need at least 3 players' });
-        return;
-      }
-      if (room.phase !== 'waiting') {
-        cb?.({ error: 'Game already started' });
-        return;
-      }
+      try {
+        const room = getRoom(roomId);
+        if (!room) {
+          cb?.({ error: 'Room not found' });
+          return;
+        }
+        if (room.hostId !== playerId) {
+          cb?.({ error: 'Only host can start' });
+          return;
+        }
+        if (room.players.length < 3) {
+          cb?.({ error: 'Need at least 3 players' });
+          return;
+        }
+        if (room.phase !== 'waiting') {
+          cb?.({ error: 'Game already started' });
+          return;
+        }
 
-      setRoomGame(room, null);
-      startGame(io, room);
-      cb?.({ ok: true });
+        setRoomGame(room, null);
+        startGame(io, room);
+        io.to(room.id).emit('room:state', sanitizeRoom(room));
+        cb?.({ ok: true });
+      } catch (error) {
+        console.error('Error starting room:', error);
+        cb?.({ error: 'Failed to start game' });
+      }
     });
 
     socket.on('room:rematch', (_payload, cb) => {

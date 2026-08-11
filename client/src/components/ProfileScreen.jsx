@@ -1,6 +1,6 @@
 import { AVATARS } from '../utils/profile';
 
-export default function ProfileScreen({ profile, onChange, onContinue }) {
+export default function ProfileScreen({ profile, onChange, onContinue, connected = true }) {
   const valid = profile.name.trim().length >= 2 && profile.name.trim().length <= 16;
 
   return (
@@ -49,6 +49,11 @@ export default function ProfileScreen({ profile, onChange, onContinue }) {
         >
           Continue
         </button>
+        {!connected && (
+          <p style={{ marginTop: '0.75rem', fontSize: '0.875rem', opacity: 0.8, textAlign: 'center' }}>
+            Waiting for server connection...
+          </p>
+        )}
       </div>
     </div>
   );

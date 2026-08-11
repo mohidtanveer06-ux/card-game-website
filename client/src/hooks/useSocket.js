@@ -63,7 +63,28 @@ export function useSocket() {
 
   const emit = useCallback((event, data, cb) => {
     return new Promise((resolve) => {
-      socketRef.current?.emit(event, data, (response) => {
+      const socket = socketRef.current;
+      if (!socket || !socket.connected) {
+        const response = { error: 'Socket not connected' };
+        cb?.(response);
+        setLastError(response.error);
+        resolve(response);
+        return;
+      }
+      let settled = false;
+      const timeout = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        const response = { error: 'Socket request timed out' };
+        cb?.(response);
+        setLastError(response.error);
+        resolve(response);
+      }, 5000);
+
+      socket.emit(event, data, (response) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
         cb?.(response);
         if (response?.error) setLastError(response.error);
         resolve(response);

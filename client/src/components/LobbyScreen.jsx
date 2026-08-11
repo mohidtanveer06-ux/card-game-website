@@ -7,6 +7,7 @@ export default function LobbyScreen({
   onBack,
   loading,
   error,
+  connected = true,
 }) {
   const [tab, setTab] = useState('create');
   const [maxPlayers, setMaxPlayers] = useState(6);
@@ -65,7 +66,7 @@ export default function LobbyScreen({
               type="button"
               className="btn-primary"
               style={{ width: '100%', marginTop: '1.25rem' }}
-              disabled={loading}
+              disabled={loading || !connected}
               onClick={() => onCreate({ gameMode, maxPlayers })}
             >
               {loading ? 'Creating...' : 'Create Room'}
@@ -89,7 +90,7 @@ export default function LobbyScreen({
               type="button"
               className="btn-primary"
               style={{ width: '100%', marginTop: '1.25rem' }}
-              disabled={loading || code.length !== 4}
+              disabled={loading || code.length !== 4 || !connected}
               onClick={handleJoin}
             >
               {loading ? 'Joining...' : 'Join Room'}
@@ -100,6 +101,11 @@ export default function LobbyScreen({
         {error && (
           <p style={{ color: '#e74c3c', textAlign: 'center', marginTop: '1rem', fontSize: '0.875rem' }}>
             {error}
+          </p>
+        )}
+        {!connected && (
+          <p style={{ color: '#f39c12', textAlign: 'center', marginTop: '1rem', fontSize: '0.875rem' }}>
+            Connecting to server...
           </p>
         )}
 
