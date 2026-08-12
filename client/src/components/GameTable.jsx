@@ -12,6 +12,7 @@ export default function GameTable({
   onPlayBluff,
   onCallBluff,
   onPassBluff,
+  onCallThullaBluff,
   onLeave,
   muted,
   onToggleMute,
@@ -77,6 +78,8 @@ export default function GameTable({
     ? `Only ${gameState.playableCardIds?.length || 0} card(s) are playable now.`
     : '';
 
+  const openRules = () => window.dispatchEvent(new CustomEvent('openRules'));
+
   return (
     <div className="game-layout">
       <header className="game-header">
@@ -91,6 +94,14 @@ export default function GameTable({
           )}
         </div>
         <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+          <button
+            type="button"
+            className="btn-secondary"
+            style={{ padding: '0.4rem 0.75rem', fontSize: '0.75rem' }}
+            onClick={openRules}
+          >
+            📖 Rules
+          </button>
           <button type="button" className="btn-secondary" style={{ padding: '0.4rem 0.75rem', fontSize: '0.75rem' }} onClick={onToggleMute}>
             {muted ? '🔇' : '🔊'}
           </button>
@@ -101,17 +112,13 @@ export default function GameTable({
       </header>
       <div style={{ padding: '0.75rem 1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(10, 18, 34, 0.9)', borderBottom: '1px solid rgba(201, 162, 39, 0.15)' }}>
         <span style={{ color: '#fff', fontSize: '0.95rem' }}>{turnStatus}</span>
-        {hintMessage ? (
-          <span style={{ color: '#f9d949', fontSize: '0.85rem' }}>{hintMessage}</span>
-        ) : null}
-      </div>
-      <div style={{ padding: '0.75rem 1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(10, 18, 34, 0.9)', borderBottom: '1px solid rgba(201, 162, 39, 0.15)' }}>
-        <span style={{ color: '#fff', fontSize: '0.95rem' }}>{turnStatus}</span>
-        {gameState.type === 'bhabhi' && isMyTurn && (
-          <span style={{ color: '#c9a227', fontSize: '0.85rem' }}>
+        {gameState.type === 'bhabhi' && isMyTurn ? (
+          <span style={{ color: gameState.playableCardIds?.length > 0 ? '#f9d949' : '#e74c3c', fontSize: '0.85rem' }}>
             Playable: {gameState.playableCardIds?.length || 0} card(s)
           </span>
-        )}
+        ) : hintMessage ? (
+          <span style={{ color: '#f9d949', fontSize: '0.85rem' }}>{hintMessage}</span>
+        ) : null}
       </div>
 
       <div className="game-main">
@@ -140,11 +147,32 @@ export default function GameTable({
           />
         )}
 
+        {gameState.type === 'bhabhi' && gameState.canChallenge && (
+          <div className="bluff-bar">
+            <span style={{ fontSize: '0.875rem' }}>
+              🎭 Think <strong>{playerNames[gameState.lastPlay?.playerId] || 'Player'}</strong> lied about their suit?
+            </span>
+            <button
+              type="button"
+              className="btn-danger"
+              onClick={() => {
+                playSound?.('bluffCall');
+                onCallThullaBluff?.();
+              }}
+            >
+              Call Bluff
+            </button>
+          </div>
+        )}
+
         {gameState.revealCards && (
-          <div style={{ display: 'flex', justifyContent: 'center', gap: '0.25rem', padding: '0.5rem' }}>
-            {gameState.revealCards.map((c) => (
-              <Card key={c.id} card={c} small dealing />
-            ))}
+          <div style={{ display: 'flex', justifyContent: 'center', gap: '0.25rem', padding: '0.5rem', alignItems: 'center', flexDirection: 'column' }}>
+            <p style={{ margin: '0 0 0.35rem', fontSize: '0.85rem', color: '#c9a227' }}>🔍 Revealed Cards:</p>
+            <div style={{ display: 'flex', gap: '0.25rem' }}>
+              {gameState.revealCards.map((c) => (
+                <Card key={c.id} card={c} small dealing />
+              ))}
+            </div>
           </div>
         )}
 

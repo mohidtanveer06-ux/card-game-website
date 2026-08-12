@@ -185,6 +185,10 @@ export function useSocket() {
 
   const passBluff = useCallback(() => emit('game:passBluff'), [emit]);
 
+  const callThullaBluff = useCallback(() => emit('game:callThullaBluff'), [emit]);
+
+  const finishReveal = useCallback(() => emit('game:finishReveal'), [emit]);
+
   const clearError = useCallback(() => setLastError(null), []);
 
   return {
@@ -207,5 +211,7 @@ export function useSocket() {
     playBluff,
     callBluff,
     passBluff,
+    callThullaBluff,
+    finishReveal,
   };
 }

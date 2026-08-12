@@ -21,12 +21,42 @@ const io = new Server(httpServer, {
   },
 });
 
+app.use((_req, res, next) => {
+  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  next();
+});
+
 app.get('/health', (_req, res) => {
   res.json({ ok: true, service: 'mt-cards-online' });
 });
 
+app.get('/assets/audit', (_req, res) => {
+  const clientPublic = path.join(__dirname, 'client', 'public');
+  const results = {
+    favicon: fs.existsSync(path.join(clientPublic, 'favicon.svg')),
+    icons: fs.existsSync(path.join(clientPublic, 'icons.svg')),
+    assets: {},
+  };
+  const assetsDir = path.join(__dirname, 'client', 'src', 'assets');
+  if (fs.existsSync(assetsDir)) {
+    for (const f of fs.readdirSync(assetsDir)) {
+      results.assets[f] = fs.existsSync(path.join(assetsDir, f));
+    }
+  }
+  res.json(results);
+});
+
 if (isProd) {
-  app.use(express.static(distPath));
+  app.use(
+    express.static(distPath, {
+      setHeaders: (res, filePath) => {
+        if (filePath.match(/\.(png|jpg|jpeg|svg|webp|gif)$/i)) {
+          res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        }
+      },
+    })
+  );
   app.get('*', (_req, res) => {
     res.sendFile(path.join(distPath, 'index.html'));
   });

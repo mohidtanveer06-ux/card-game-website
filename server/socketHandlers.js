@@ -10,8 +10,8 @@ import {
   sanitizeRoom,
   setRoomGame,
 } from './roomManager.js';
-import { playCard } from './games/bhabhiEngine.js';
-import { playBluff, callBluff, passBluff } from './games/bluffEngine.js';
+import { playCard, callThullaBluff } from './games/bhabhiEngine.js';
+import { playBluff, callBluff, passBluff, finishReveal } from './games/bluffEngine.js';
 import {
   startGame,
   broadcastGame,
@@ -21,6 +21,7 @@ import {
   scheduleTurnTimeout,
   clearBotTimer,
   clearTurnTimeout,
+  scheduleRevealFinish,
 } from './bots/botPlayer.js';
 
 const profiles = new Map();
@@ -178,6 +179,28 @@ export function setupSocketHandlers(io) {
       }
     });
 
+    socket.on('game:callThullaBluff', (_payload, cb) => {
+      const room = getRoom(roomId);
+      if (!room?.game || room.game.type !== 'bhabhi') {
+        cb?.({ error: 'Invalid game state' });
+        return;
+      }
+      const result = callThullaBluff(room.game, room, playerId);
+      if (result.error) {
+        cb?.({ error: result.error });
+        socket.emit('game:log', { message: result.error, type: 'error' });
+        return;
+      }
+      cb?.({ ok: true, lied: result.lied });
+      broadcastGame(io, room);
+      emitLog(io, room, room.game);
+      if (room.game.phase === 'ended') {
+        handleGameEnd(io, room);
+      } else {
+        scheduleBotTurn(io, room, room.game, 500);
+      }
+    });
+
     socket.on('game:playBluff', ({ cardIds, declaredRank }, cb) => {
       const room = getRoom(roomId);
       if (!room?.game || room.game.type !== 'bluff') {
@@ -217,7 +240,8 @@ export function setupSocketHandlers(io) {
       if (room.game.phase === 'ended') {
         handleGameEnd(io, room);
       } else {
-        scheduleBotTurn(io, room, room.game, 500);
+        scheduleRevealFinish(io, room, room.game);
+        scheduleBotTurn(io, room, room.game, Math.max(1800, room.game.revealEndsAt ? room.game.revealEndsAt - Date.now() + 200 : 800));
       }
     });
 
@@ -236,6 +260,22 @@ export function setupSocketHandlers(io) {
       broadcastGame(io, room);
       emitLog(io, room, room.game);
       scheduleBotTurn(io, room, room.game, 300);
+    });
+
+    socket.on('game:finishReveal', (_payload, cb) => {
+      const room = getRoom(roomId);
+      if (!room?.game) {
+        cb?.({ error: 'Invalid game state' });
+        return;
+      }
+      if (room.game.type === 'bluff') {
+        const result = finishReveal(room.game);
+        if (!result.error) {
+          broadcastGame(io, room);
+          scheduleBotTurn(io, room, room.game, 300);
+        }
+      }
+      cb?.({ ok: true });
     });
 
     socket.on('disconnect', () => {

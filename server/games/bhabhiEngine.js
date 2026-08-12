@@ -1,17 +1,20 @@
 import { createDeck, shuffleDeck, dealEvenly, sortHand, formatCard, findAceOfSpades } from './deck.js';
 
 const TURN_TIMEOUT_MS = 15000;
+const CHALLENGE_WINDOW_MS = 5000;
 
 export function createBhabhiGame(room, playerIds = room.players.map((p) => p.id)) {
   const deck = shuffleDeck(createDeck());
-  const hands = dealEvenly(deck, playerIds);
+  const hands = dealEvenlyStandard(deck, playerIds);
   for (const id of playerIds) {
     hands[id] = sortHand(hands[id]);
   }
 
-  const aceHolder = findAceOfSpades(hands);
+  let aceHolder = findAceOfSpades(hands);
+  if (!aceHolder) aceHolder = playerIds[0];
+
   const turnOrder = [...room.players.map((p) => p.id)];
-  const aceIndex = turnOrder.indexOf(aceHolder);
+  const aceIndex = Math.max(0, turnOrder.indexOf(aceHolder));
 
   return {
     type: 'bhabhi',
@@ -24,16 +27,33 @@ export function createBhabhiGame(room, playerIds = room.players.map((p) => p.id)
     currentTurnIndex: aceIndex,
     gotAway: [],
     escapeOrder: [],
+    escapeOrderNames: [],
     isFirstTrick: true,
     turnDeadline: Date.now() + TURN_TIMEOUT_MS,
     logs: [],
     winner: null,
     bhabhi: null,
+    challengeWindowEnd: null,
+    challengeCaller: null,
+    revealCards: null,
+    lastPlay: null,
+    playerNames: Object.fromEntries(room.players.map((p) => [p.id, p.name])),
+    roundScores: {},
+    penalties: {},
   };
 }
 
 export function attachPlayerNames(game, room) {
   game.playerNames = Object.fromEntries(room.players.map((p) => [p.id, p.name]));
+}
+
+function dealEvenlyStandard(deck, playerIds) {
+  const hands = Object.fromEntries(playerIds.map((id) => [id, []]));
+  const n = playerIds.length;
+  for (let i = 0; i < deck.length; i++) {
+    hands[playerIds[i % n]].push(deck[i]);
+  }
+  return hands;
 }
 
 function activePlayers(game) {
@@ -45,7 +65,7 @@ function playerHasCards(game, playerId) {
 }
 
 function advanceTurnIndex(game, fromIndex) {
-  const active = activePlayers(game);
+  const active = activePlayers(game).filter((id) => playerHasCards(game, id));
   if (active.length <= 1) return fromIndex;
   let idx = fromIndex;
   for (let i = 0; i < game.turnOrder.length; i++) {
@@ -56,11 +76,13 @@ function advanceTurnIndex(game, fromIndex) {
   return fromIndex;
 }
 
-function checkGotAway(game, playerId) {
+function checkGotAway(game, playerId, room) {
   if (game.hands[playerId].length === 0 && !game.gotAway.includes(playerId)) {
     game.gotAway.push(playerId);
     game.escapeOrder.push(playerId);
-    game.logs.push({ message: `${playerId} got away safely!`, type: 'success' });
+    const name = getPlayerName(room, playerId);
+    game.escapeOrderNames.push(name);
+    game.logs.push({ message: `${name} got away safely!`, type: 'success' });
   }
 }
 
@@ -70,8 +92,11 @@ function endGameIfNeeded(game, room) {
     game.phase = 'ended';
     if (remaining.length === 1) {
       game.bhabhi = remaining[0];
-      const bhabhiName = room.players.find((p) => p.id === game.bhabhi)?.name || 'Unknown';
+      const bhabhiName = getPlayerName(room, game.bhabhi);
       game.logs.push({ message: `${bhabhiName} is the BHABHI (loser)!`, type: 'danger' });
+      game.winner = game.escapeOrder[game.escapeOrder.length - 1] || null;
+    } else if (remaining.length === 0) {
+      game.winner = game.escapeOrder[game.escapeOrder.length - 1] || null;
     }
     return true;
   }
@@ -79,12 +104,14 @@ function endGameIfNeeded(game, room) {
 }
 
 function drawFromDiscardForLeader(game, leaderId) {
-  while (game.hands[leaderId].length === 0 && game.discardPile.length > 0) {
+  if (game.gotAway.includes(leaderId)) return;
+  if (playerHasCards(game, leaderId)) return;
+  while (game.discardPile.length > 0 && game.hands[leaderId].length === 0) {
     const idx = Math.floor(Math.random() * game.discardPile.length);
     const card = game.discardPile.splice(idx, 1)[0];
     game.hands[leaderId].push(card);
-    game.hands[leaderId] = sortHand(game.hands[leaderId]);
   }
+  game.hands[leaderId] = sortHand(game.hands[leaderId]);
 }
 
 function resolveCleanTrick(game, room) {
@@ -100,14 +127,20 @@ function resolveCleanTrick(game, room) {
     message: `${getPlayerName(room, highest.playerId)} wins the trick with ${formatCard(highest.card)}`,
     type: 'info',
   });
-  checkGotAway(game, highest.playerId);
+  checkGotAway(game, highest.playerId, room);
   if (endGameIfNeeded(game, room)) return;
 
   let leaderId = highest.playerId;
-  drawFromDiscardForLeader(game, leaderId);
-  if (!playerHasCards(game, leaderId)) {
+
+  if (game.gotAway.includes(leaderId)) {
     const remaining = activePlayers(game).filter((id) => playerHasCards(game, id));
-    leaderId = remaining[0];
+    leaderId = remaining[0] || leaderId;
+  } else {
+    drawFromDiscardForLeader(game, leaderId);
+    if (!playerHasCards(game, leaderId) && game.discardPile.length === 0) {
+      const remaining = activePlayers(game).filter((id) => playerHasCards(game, id));
+      leaderId = remaining[0] || leaderId;
+    }
   }
 
   game.currentTrick = { leaderId, ledSuit: null, plays: [] };
@@ -119,24 +152,30 @@ function resolveCleanTrick(game, room) {
 function resolveThullaTrick(game, room, thullaPlayerId) {
   const { ledSuit, plays } = game.currentTrick;
   const suitPlays = plays.filter((p) => p.card.suit === ledSuit);
-  let pickupPlayerId = suitPlays[0]?.playerId;
-  let highestVal = suitPlays[0]?.card.value ?? 0;
+
+  let pickupPlayerId;
+  let highestVal = -1;
   for (const play of suitPlays) {
     if (play.card.value > highestVal) {
       highestVal = play.card.value;
       pickupPlayerId = play.playerId;
     }
   }
+  if (!pickupPlayerId) pickupPlayerId = thullaPlayerId;
 
   const trickCards = plays.map((p) => p.card);
-  game.hands[pickupPlayerId].push(...trickCards);
-  game.hands[pickupPlayerId] = sortHand(game.hands[pickupPlayerId]);
+  if (!game.gotAway.includes(pickupPlayerId)) {
+    game.hands[pickupPlayerId].push(...trickCards);
+    game.hands[pickupPlayerId] = sortHand(game.hands[pickupPlayerId]);
+  } else {
+    game.discardPile.push(...trickCards);
+  }
 
   const thullaName = getPlayerName(room, thullaPlayerId);
   const pickupName = getPlayerName(room, pickupPlayerId);
   game.logs.push({
     message: `${thullaName} threw THULLA! ${pickupName} picks up ${trickCards.length} cards.`,
-    type: 'warning',
+    type: 'thulla',
   });
 
   game.currentTrick = { leaderId: pickupPlayerId, ledSuit: null, plays: [] };
@@ -151,13 +190,15 @@ function getPlayerName(room, playerId) {
 
 export function buildBhabhiStandings(game, room) {
   const placements = [];
-  for (const playerId of game.escapeOrder || []) {
+  for (let i = 0; i < (game.escapeOrder || []).length; i++) {
+    const playerId = game.escapeOrder[i];
     placements.push({
       playerId,
       name: getPlayerName(room, playerId),
       position: placements.length + 1,
       label: getPositionLabel(placements.length + 1),
       isBhabhi: false,
+      score: computePositionScore(i, game.escapeOrder.length + 1),
     });
   }
 
@@ -168,10 +209,15 @@ export function buildBhabhiStandings(game, room) {
       position: placements.length + 1,
       label: getPositionLabel(placements.length + 1),
       isBhabhi: true,
+      score: 0,
     });
   }
 
   return placements;
+}
+
+function computePositionScore(escapeIndex, totalPlayers) {
+  return Math.max(1, totalPlayers - escapeIndex);
 }
 
 function getPositionLabel(position) {
@@ -193,11 +239,11 @@ export function getLegalPlays(game, playerId) {
 
   const { plays, ledSuit } = game.currentTrick;
   const isLead = plays.length === 0;
+  const leaderId = game.currentTrick.leaderId;
 
-  if (game.isFirstTrick && isLead) {
+  if (game.isFirstTrick && isLead && leaderId === playerId) {
     const ace = hand.find((c) => c.id === 'A-spades');
     if (ace) return [ace.id];
-    return hand.map((c) => c.id);
   }
 
   if (isLead) {
@@ -214,7 +260,12 @@ export function getLegalPlays(game, playerId) {
 export const playCard = playBhabhiCard;
 
 export function playBhabhiCard(game, room, playerId, cardId) {
-  if (game.phase !== 'playing') return { error: 'Game not in playing phase' };
+  if (game.phase !== 'playing' && game.phase !== 'challengeWindow') {
+    return { error: 'Game not in playing phase' };
+  }
+  if (game.phase === 'challengeWindow') {
+    return { error: 'Wait for challenge resolution' };
+  }
   if (getCurrentPlayerId(game) !== playerId) return { error: 'Not your turn' };
 
   const legal = getLegalPlays(game, playerId);
@@ -232,12 +283,13 @@ export function playBhabhiCard(game, room, playerId, cardId) {
   }
 
   game.currentTrick.plays.push({ playerId, card });
+  game.lastPlay = { playerId, card };
   game.logs.push({
     message: `${getPlayerName(room, playerId)} played ${formatCard(card)}`,
-    type: 'info',
+    type: 'play',
   });
 
-  checkGotAway(game, playerId);
+  checkGotAway(game, playerId, room);
   if (endGameIfNeeded(game, room)) return { success: true };
 
   const isThulla = card.suit !== game.currentTrick.ledSuit;
@@ -259,6 +311,54 @@ export function playBhabhiCard(game, room, playerId, cardId) {
   game.currentTurnIndex = advanceTurnIndex(game, game.currentTurnIndex);
   game.turnDeadline = Date.now() + TURN_TIMEOUT_MS;
   return { success: true };
+}
+
+export function callThullaBluff(game, room, callerId) {
+  if (game.phase !== 'playing' || !game.lastPlay) return { error: 'No play to challenge' };
+  if (callerId === game.lastPlay.playerId) return { error: 'Cannot challenge yourself' };
+
+  const lastPlayer = game.lastPlay.playerId;
+  const lastCard = game.lastPlay.card;
+  const ledSuit = game.currentTrick.ledSuit;
+  const hand = game.hands[lastPlayer] || [];
+
+  const hadMatchingSuit = hand.some((c) => c.suit === ledSuit);
+  const lied = lastCard.suit !== ledSuit && hadMatchingSuit;
+
+  const { plays } = game.currentTrick;
+  const trickCards = plays.map((p) => p.card);
+
+  let loserId;
+  if (lied) {
+    loserId = lastPlayer;
+  } else {
+    loserId = callerId;
+  }
+
+  if (!game.gotAway.includes(loserId)) {
+    game.hands[loserId].push(...trickCards);
+    game.hands[loserId] = sortHand(game.hands[loserId]);
+  }
+
+  game.penalties[loserId] = (game.penalties[loserId] || 0) + 1;
+  game.revealCards = [lastCard];
+  game.challengeCaller = callerId;
+
+  game.logs.push({
+    message: lied
+      ? `${getPlayerName(room, callerId)} called bluff on ${getPlayerName(room, lastPlayer)} — caught! Had ${ledSuit} but threw Thulla. ${getPlayerName(room, loserId)} picks up.`
+      : `${getPlayerName(room, callerId)} called bluff on ${getPlayerName(room, lastPlayer)} — wrong! No ${ledSuit} available. ${getPlayerName(room, loserId)} picks up.`,
+    type: 'bluff',
+  });
+
+  const leaderId = lied ? callerId : lastPlayer;
+  game.currentTrick = { leaderId, ledSuit: null, plays: [] };
+  game.currentTurnIndex = Math.max(0, game.turnOrder.indexOf(leaderId));
+  game.isFirstTrick = false;
+  game.turnDeadline = Date.now() + TURN_TIMEOUT_MS;
+  game.lastPlay = null;
+
+  return { success: true, lied, revealCards: game.revealCards };
 }
 
 export function autoPlayBhabhi(game, room, playerId) {
@@ -286,6 +386,12 @@ export function sanitizeBhabhiState(game, room, viewerId) {
   const isMyTurn = currentPlayerId === viewerId;
   const handCounts = Object.fromEntries(room.players.map((p) => [p.id, (game.hands[p.id] || []).length]));
 
+  const canChallenge =
+    game.phase === 'playing' &&
+    !!game.lastPlay &&
+    game.lastPlay.playerId !== viewerId &&
+    !game.gotAway.includes(viewerId);
+
   return {
     type: 'bhabhi',
     mode: 'bhabhi',
@@ -307,8 +413,19 @@ export function sanitizeBhabhiState(game, room, viewerId) {
     turnTimeoutMs: TURN_TIMEOUT_MS,
     logs: game.logs.slice(-20),
     bhabhi: game.bhabhi,
-    escapeOrderNames: game.escapeOrder.map((id) => room.players.find((p) => p.id === id)?.name),
+    escapeOrderNames: (game.escapeOrder || []).map((id) => room.players.find((p) => p.id === id)?.name),
     bhabhiName: game.bhabhi ? room.players.find((p) => p.id === game.bhabhi)?.name : null,
+    canChallenge,
+    challengeWindowMs: CHALLENGE_WINDOW_MS,
+    revealCards: game.revealCards,
+    challengeCaller: game.challengeCaller,
+    canShowRules: true,
+    lastPlay: game.lastPlay
+      ? {
+          playerId: game.lastPlay.playerId,
+          card: game.lastPlay.card,
+        }
+      : null,
   };
 }
 
@@ -325,14 +442,24 @@ export function getBhabhiBotMove(game, playerId) {
 
   if (plays.length === 0) {
     if (activeCount <= 2) {
-      return legalCards.reduce((a, b) => (a.value > b.value ? a : b)).id;
+      return legalCards.reduce((a, b) => (a.value > b.value ? a : b));
     }
-    return legalCards.reduce((a, b) => (a.value < b.value ? a : b)).id;
+    return legalCards.reduce((a, b) => (a.value < b.value ? a : b));
   }
 
   const hasLedSuit = hand.some((c) => c.suit === ledSuit);
   if (hasLedSuit) {
-    return legalCards.reduce((a, b) => (a.value < b.value ? a : b)).id;
+    return legalCards.reduce((a, b) => (a.value < b.value ? a : b));
   }
-  return legalCards.reduce((a, b) => (a.value < b.value ? a : b)).id;
+  return legalCards.reduce((a, b) => (a.value < b.value ? a : b));
 }
+
+export function shouldBotCallBhabhiBluff(game, viewerId) {
+  if (!game.lastPlay || game.lastPlay.playerId === viewerId) return false;
+  if (game.gotAway.includes(viewerId)) return false;
+  const pileSize = game.currentTrick.plays.length;
+  if (pileSize >= 3) return Math.random() < 0.3;
+  return Math.random() < 0.08;
+}
+
+export { CHALLENGE_WINDOW_MS, TURN_TIMEOUT_MS as BHABHI_TURN_TIMEOUT_MS };

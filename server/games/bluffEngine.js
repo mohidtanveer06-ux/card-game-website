@@ -2,6 +2,7 @@ import { createDeck, shuffleDeck, dealEvenly, sortHand, formatCard, nextBluffRan
 
 const TURN_TIMEOUT_MS = 15000;
 const CHALLENGE_WINDOW_MS = 5000;
+const REVEAL_DURATION_MS = 1500;
 
 export function createBluffGame(room, playerIds = room.players.map((p) => p.id)) {
   const deck = shuffleDeck(createDeck());
@@ -25,15 +26,19 @@ export function createBluffGame(room, playerIds = room.players.map((p) => p.id))
     challengeWindowEnd: null,
     challengeCaller: null,
     revealCards: null,
+    revealEndsAt: null,
+    revealNextState: null,
     turnDeadline: Date.now() + TURN_TIMEOUT_MS,
     logs: [],
     winner: null,
     pendingRankAdvance: false,
+    playerNames: Object.fromEntries(room.players.map((p) => [p.id, p.name])),
+    penalties: {},
   };
 }
 
 export function attachPlayerNames(game, room) {
-  game.playerNames = room.players.map((p) => p.name);
+  game.playerNames = Object.fromEntries(room.players.map((p) => [p.id, p.name]));
 }
 
 function getPlayerName(room, playerId) {
@@ -53,6 +58,8 @@ function advanceTurn(game) {
   game.phase = 'playing';
   game.lastPlay = null;
   game.challengeWindowEnd = null;
+  game.revealCards = null;
+  game.challengeCaller = null;
 }
 
 export function playBluffCards(game, room, playerId, cardIds, declaredRank) {
@@ -116,24 +123,42 @@ export function callBluff(game, room, callerId) {
   game.revealCards = cards;
   game.phase = 'reveal';
   game.challengeCaller = callerId;
+  game.revealEndsAt = Date.now() + REVEAL_DURATION_MS;
+  game.penalties = game.penalties || {};
+  game.penalties[loserId] = (game.penalties[loserId] || 0) + 1;
+
+  const nextRank = nextBluffRank(game.requiredRank);
+  const nextIndex = game.turnOrder.indexOf(loserId);
 
   game.logs.push({
     message: lied
       ? `${getPlayerName(room, callerId)} called BLUFF on ${getPlayerName(room, playerId)} — caught lying! ${loserName} picks up the pile.`
       : `${getPlayerName(room, callerId)} called BLUFF on ${getPlayerName(room, playerId)} — wrong! ${loserName} picks up the pile.`,
-    type: 'warning',
+    type: 'bluff',
   });
 
-  game.requiredRank = nextBluffRank(game.requiredRank);
-  game.currentTurnIndex = game.turnOrder.indexOf(loserId);
+  game.revealNextState = {
+    requiredRank: nextRank,
+    currentTurnIndex: nextIndex,
+  };
+
+  return { success: true, lied, revealCards: cards };
+}
+
+export function finishReveal(game) {
+  if (game.phase !== 'reveal') return { error: 'Not in reveal phase' };
+  if (game.revealNextState) {
+    game.requiredRank = game.revealNextState.requiredRank;
+    game.currentTurnIndex = game.revealNextState.currentTurnIndex;
+  }
   game.turnDeadline = Date.now() + TURN_TIMEOUT_MS;
   game.lastPlay = null;
   game.challengeWindowEnd = null;
-
-  setTimeout(() => {}, 0);
+  game.revealCards = null;
+  game.revealEndsAt = null;
+  game.revealNextState = null;
   game.phase = 'playing';
-
-  return { success: true, lied, revealCards: cards };
+  return { success: true };
 }
 
 export const passBluff = passBluffChallenge;
@@ -181,6 +206,12 @@ export function sanitizeBluffState(game, room, viewerId) {
   const isMyTurn = currentPlayerId === viewerId;
   const handCounts = Object.fromEntries(room.players.map((p) => [p.id, (game.hands[p.id] || []).length]));
 
+  const canChallenge =
+    game.phase === 'challengeWindow' &&
+    !!game.lastPlay &&
+    game.lastPlay.playerId !== viewerId &&
+    (game.hands[viewerId]?.length || 0) > 0;
+
   return {
     type: 'bluff',
     mode: 'bluff',
@@ -203,12 +234,16 @@ export function sanitizeBluffState(game, room, viewerId) {
     challengeWindowEnd: game.challengeWindowEnd,
     challengeWindowMs: CHALLENGE_WINDOW_MS,
     revealCards: game.revealCards,
-    turnDeadline: game.turnDeadline,
-    turnTimeoutMs: TURN_TIMEOUT_MS,
+    revealEndsAt: game.revealEndsAt,
+    turnDeadline: game.phase === 'reveal' ? game.revealEndsAt : game.turnDeadline,
+    turnTimeoutMs: game.phase === 'reveal' ? REVEAL_DURATION_MS : TURN_TIMEOUT_MS,
     logs: game.logs.slice(-20),
     winner: game.winner,
     winnerName: game.winner ? room.players.find((p) => p.id === game.winner)?.name : null,
     rankOrder: BLUFF_RANK_ORDER,
+    canChallenge,
+    challengeCaller: game.challengeCaller,
+    canShowRules: true,
   };
 }
 
@@ -239,4 +274,4 @@ export function shouldBotCallBluff(game) {
   return Math.random() < 0.15;
 }
 
-export { CHALLENGE_WINDOW_MS, TURN_TIMEOUT_MS as BLUFF_TURN_TIMEOUT_MS };
+export { CHALLENGE_WINDOW_MS, TURN_TIMEOUT_MS as BLUFF_TURN_TIMEOUT_MS, REVEAL_DURATION_MS };

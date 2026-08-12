@@ -8,6 +8,7 @@ import LobbyScreen from './components/LobbyScreen';
 import WaitingRoom from './components/WaitingRoom';
 import GameTable from './components/GameTable';
 import ToastStack from './components/ToastStack';
+import RuleModal, { RulesButton } from './components/RuleModal.jsx';
 
 const SCREENS = {
   SPLASH: 'splash',
@@ -47,7 +48,7 @@ function EndGameModal({ gameEnded, gameState, myId, isHost, onRematch, onLeave }
                 {standings.map((entry) => (
                   <p key={entry.playerId} style={{ margin: '0.2rem 0', fontSize: '0.9rem' }}>
                     <strong>{entry.label}</strong>: {entry.name || names[entry.playerId] || 'Player'}
-                    {entry.isBhabhi ? ' — Bhabhi' : ''}
+                    {entry.isBhabhi ? ' — Bhabhi' : ` (Score: ${entry.score ?? '-'})`}
                   </p>
                 ))}
               </div>
@@ -135,6 +136,10 @@ export default function App() {
       }
     }
   }, [socket.gameEnded, socket.playerId, play]);
+
+  const openRules = useCallback(() => {
+    window.dispatchEvent(new CustomEvent('openRules'));
+  }, []);
 
   const handleProfileContinue = async () => {
     saveProfile(profile);
@@ -253,47 +258,73 @@ export default function App() {
           <button type="button" className="btn-primary" style={{ width: '100%' }} onClick={() => setScreen(SCREENS.PROFILE)}>
             Play Now
           </button>
+          <div style={{ marginTop: '1rem' }}>
+            <RulesButton onClick={openRules} />
+          </div>
           {!socket.connected && (
             <p style={{ fontSize: '0.75rem', opacity: 0.6, marginTop: '1rem' }}>Connecting to server...</p>
           )}
         </div>
+        <RuleModal initialMode="bhabhi" />
+        <ToastStack toasts={toasts} onDismiss={dismissToast} />
       </div>
     );
   }
 
   if (screen === SCREENS.PROFILE) {
     return (
-      <ProfileScreen
-        profile={profile}
-        onChange={setProfile}
-        onContinue={handleProfileContinue}
-        connected={socket.connected}
-      />
+      <>
+        <ProfileScreen
+          profile={profile}
+          onChange={setProfile}
+          onContinue={handleProfileContinue}
+          connected={socket.connected}
+        />
+        <div style={{ position: 'fixed', bottom: '1.5rem', left: '50%', transform: 'translateX(-50%)' }}>
+          <RulesButton onClick={openRules} />
+        </div>
+        <RuleModal initialMode="bhabhi" />
+        <ToastStack toasts={toasts} onDismiss={dismissToast} />
+      </>
     );
   }
 
   if (screen === SCREENS.MODE) {
     return (
-      <GameSelectScreen
-        selected={gameMode}
-        onSelect={setGameMode}
-        onContinue={() => setScreen(SCREENS.LOBBY)}
-        onBack={() => setScreen(SCREENS.PROFILE)}
-      />
+      <>
+        <GameSelectScreen
+          selected={gameMode}
+          onSelect={setGameMode}
+          onContinue={() => setScreen(SCREENS.LOBBY)}
+          onBack={() => setScreen(SCREENS.PROFILE)}
+        />
+        <div style={{ position: 'fixed', bottom: '1.5rem', left: '50%', transform: 'translateX(-50%)' }}>
+          <RulesButton onClick={openRules} />
+        </div>
+        <RuleModal initialMode={gameMode} />
+        <ToastStack toasts={toasts} onDismiss={dismissToast} />
+      </>
     );
   }
 
   if (screen === SCREENS.LOBBY) {
     return (
-      <LobbyScreen
-        gameMode={gameMode}
-        onCreate={handleCreate}
-        onJoin={handleJoin}
-        onBack={() => setScreen(SCREENS.MODE)}
-        loading={loading}
-        error={lobbyError}
-        connected={socket.connected}
-      />
+      <>
+        <LobbyScreen
+          gameMode={gameMode}
+          onCreate={handleCreate}
+          onJoin={handleJoin}
+          onBack={() => setScreen(SCREENS.MODE)}
+          loading={loading}
+          error={lobbyError}
+          connected={socket.connected}
+        />
+        <div style={{ position: 'fixed', bottom: '1.5rem', left: '50%', transform: 'translateX(-50%)' }}>
+          <RulesButton onClick={openRules} />
+        </div>
+        <RuleModal initialMode={gameMode} />
+        <ToastStack toasts={toasts} onDismiss={dismissToast} />
+      </>
     );
   }
 
@@ -322,6 +353,7 @@ export default function App() {
           onRematch={handleRematch}
           onLeave={handleLeave}
         />
+        <RuleModal initialMode={socket.roomState.gameMode || 'bhabhi'} />
         <ToastStack toasts={toasts} onDismiss={dismissToast} />
       </>
     );
@@ -342,6 +374,7 @@ export default function App() {
           onPlayBluff={socket.playBluff}
           onCallBluff={socket.callBluff}
           onPassBluff={socket.passBluff}
+          onCallThullaBluff={socket.callThullaBluff}
           onLeave={handleLeave}
           muted={muted}
           onToggleMute={toggleMute}
@@ -355,6 +388,7 @@ export default function App() {
           onRematch={handleRematch}
           onLeave={handleLeave}
         />
+        <RuleModal initialMode={socket.gameState.type || 'bhabhi'} />
         <ToastStack toasts={toasts} onDismiss={dismissToast} />
       </>
     );
@@ -363,6 +397,8 @@ export default function App() {
   return (
     <div className="screen-container">
       <p>Loading...</p>
+      <RuleModal initialMode="bhabhi" />
+      <ToastStack toasts={toasts} onDismiss={dismissToast} />
     </div>
   );
 }

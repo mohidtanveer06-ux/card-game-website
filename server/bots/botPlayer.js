@@ -7,6 +7,8 @@ import {
   sanitizeBhabhiState,
   bhabhiCurrentPlayer,
   buildBhabhiStandings,
+  shouldBotCallBhabhiBluff,
+  callThullaBluff,
 } from '../games/bhabhiEngine.js';
 import {
   createBluffGame,
@@ -19,9 +21,12 @@ import {
   shouldBotCallBluff,
   sanitizeBluffState,
   bluffCurrentPlayer,
+  finishReveal,
 } from '../games/bluffEngine.js';
+import { sanitizeRoom } from '../roomManager.js';
 
 const botTimers = new Map();
+const revealTimers = new Map();
 
 function clearBotTimer(roomId) {
   const t = botTimers.get(roomId);
@@ -31,8 +36,36 @@ function clearBotTimer(roomId) {
   }
 }
 
+function clearRevealTimer(roomId) {
+  const t = revealTimers.get(roomId);
+  if (t) {
+    clearTimeout(t);
+    revealTimers.delete(roomId);
+  }
+}
+
+function scheduleRevealFinish(io, room, game) {
+  clearRevealTimer(room.id);
+  if (game.type !== 'bluff' || game.phase !== 'reveal') return;
+
+  const duration = Math.max(0, (game.revealEndsAt || Date.now() + 1500) - Date.now());
+  const timer = setTimeout(() => {
+    if (room.game && room.game.phase === 'reveal' && room.game.type === 'bluff') {
+      finishReveal(room.game);
+      broadcastGame(io, room);
+      if (room.game.phase === 'ended') {
+        handleGameEnd(io, room);
+        return;
+      }
+      scheduleBotTurn(io, room, room.game, 300);
+    }
+  }, duration + 50);
+  revealTimers.set(room.id, timer);
+}
+
 function scheduleBotTurn(io, room, game, delayMs = 800) {
   clearBotTimer(room.id);
+  clearRevealTimer(room.id);
 
   const run = () => {
     if (!room.game || room.phase !== 'playing') return;
@@ -50,15 +83,38 @@ function scheduleBotTurn(io, room, game, delayMs = 800) {
 
 function handleBhabhiBot(io, room, game) {
   const currentId = bhabhiCurrentPlayer(game);
-  const player = room.players.find((p) => p.id === currentId);
-  if (!player?.isBot) {
+  const currentPlayer = room.players.find((p) => p.id === currentId);
+
+  const botChallengers = room.players.filter(
+    (p) =>
+      p.isBot &&
+      !!game.lastPlay &&
+      game.lastPlay.playerId !== p.id &&
+      !game.gotAway.includes(p.id)
+  );
+  for (const bot of botChallengers) {
+    if (shouldBotCallBhabhiBluff(game, bot.id)) {
+      callThullaBluff(game, room, bot.id);
+      broadcastGame(io, room);
+      emitLog(io, room, game);
+      if (game.phase === 'ended') {
+        handleGameEnd(io, room);
+        return;
+      }
+      scheduleBotTurn(io, room, game, 700);
+      return;
+    }
+  }
+
+  if (!currentPlayer?.isBot) {
     scheduleTurnTimeout(io, room, game);
     return;
   }
 
   const move = chooseBhabhiBotMove(game, currentId);
   if (move) {
-    playCard(game, room, currentId, move.id);
+    const cardId = move.id || move;
+    playCard(game, room, currentId, cardId);
     broadcastGame(io, room);
     emitLog(io, room, game);
     if (game.phase === 'ended') {
@@ -70,6 +126,11 @@ function handleBhabhiBot(io, room, game) {
 }
 
 function handleBluffBot(io, room, game) {
+  if (game.phase === 'reveal') {
+    scheduleRevealFinish(io, room, game);
+    return;
+  }
+
   if (game.phase === 'challengeWindow') {
     const candidates = room.players.filter(
       (p) =>
@@ -86,7 +147,8 @@ function handleBluffBot(io, room, game) {
         handleGameEnd(io, room);
         return;
       }
-      scheduleBotTurn(io, room, game, 1000);
+      scheduleRevealFinish(io, room, game);
+      scheduleBotTurn(io, room, game, Math.max(1800, (game.revealEndsAt || Date.now() + 1500) - Date.now() + 300));
       return;
     }
     passBluff(game);
@@ -128,7 +190,7 @@ function clearTurnTimeout(roomId) {
 
 function scheduleTurnTimeout(io, room, game) {
   clearTurnTimeout(room.id);
-  const deadline = game.turnDeadline || game.challengeDeadline;
+  const deadline = game.turnDeadline || game.challengeDeadline || game.revealEndsAt;
   if (!deadline) return;
 
   const ms = Math.max(0, deadline - Date.now());
@@ -141,6 +203,8 @@ function scheduleTurnTimeout(io, room, game) {
     } else if (game.type === 'bluff') {
       if (game.phase === 'challengeWindow') {
         passBluff(game);
+      } else if (game.phase === 'reveal') {
+        finishReveal(game);
       } else {
         const pid = bluffCurrentPlayer(game);
         autoPlayBluff(game, room, pid);
@@ -188,6 +252,7 @@ function emitLog(io, room, game) {
 function handleGameEnd(io, room) {
   clearBotTimer(room.id);
   clearTurnTimeout(room.id);
+  clearRevealTimer(room.id);
   const game = room.game;
   room.phase = 'ended';
 
@@ -226,11 +291,13 @@ function startGame(io, room) {
 export {
   scheduleBotTurn,
   scheduleTurnTimeout,
+  scheduleRevealFinish,
   broadcastGame,
   emitLog,
   handleGameEnd,
   startGame,
   clearBotTimer,
   clearTurnTimeout,
+  clearRevealTimer,
   sanitizeGame,
 };
