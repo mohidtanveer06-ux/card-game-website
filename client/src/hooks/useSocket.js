@@ -177,13 +177,28 @@ export function useSocket() {
   );
 
   const playBluff = useCallback(
-    (cardIds, declaredRank) => emit('game:playBluff', { cardIds, declaredRank }),
+    (cardIds, declaredRank) => emit('game:playBluffDeclareRank', { cardIds, declaredRank }),
+    [emit]
+  );
+
+  const playBluffDeclareRank = useCallback(
+    (cardIds, declaredRank) => emit('game:playBluffDeclareRank', { cardIds, declaredRank }),
+    [emit]
+  );
+
+  const playBluffMatching = useCallback(
+    (cardIds) => emit('game:playBluffMatching', { cardIds }),
+    [emit]
+  );
+
+  const skipBluffTurn = useCallback(
+    () => emit('game:skipBluffTurn'),
     [emit]
   );
 
   const callBluff = useCallback(() => emit('game:callBluff'), [emit]);
 
-  const passBluff = useCallback(() => emit('game:passBluff'), [emit]);
+  const passBluff = useCallback(() => emit('game:skipBluffTurn'), [emit]);
 
   const callThullaBluff = useCallback(() => emit('game:callThullaBluff'), [emit]);
 
@@ -209,6 +224,9 @@ export function useSocket() {
     rematch,
     playCard,
     playBluff,
+    playBluffDeclareRank,
+    playBluffMatching,
+    skipBluffTurn,
     callBluff,
     passBluff,
     callThullaBluff,

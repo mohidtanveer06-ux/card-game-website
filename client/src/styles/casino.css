@@ -529,6 +529,99 @@
   border-top: 1px solid rgba(201, 162, 39, 0.3);
 }
 
+.thulla-challenge-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 0.75rem;
+  background: rgba(192, 57, 43, 0.15);
+  border-top: 1px solid rgba(192, 57, 43, 0.3);
+}
+
+.bluff-announcement {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem;
+  background: linear-gradient(135deg, rgba(201, 162, 39, 0.2) 0%, rgba(13, 74, 46, 0.3) 100%);
+  border-top: 2px solid rgba(201, 162, 39, 0.4);
+  border-bottom: 1px solid rgba(201, 162, 39, 0.15);
+  flex-direction: column;
+}
+
+.bluff-announcement-main {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #f5f0e1;
+}
+
+.bluff-announcement-player {
+  color: #c9a227;
+  font-weight: 700;
+}
+
+.bluff-announcement-rank {
+  color: #f9d949;
+  font-size: 1.25rem;
+  font-weight: 800;
+  padding: 0 0.25rem;
+}
+
+.bluff-announcement-count {
+  color: #27ae60;
+  font-weight: 700;
+}
+
+.bluff-announcement-count-badge {
+  display: inline-block;
+  min-width: 28px;
+  padding: 0.1rem 0.5rem;
+  background: rgba(39, 174, 96, 0.25);
+  border-radius: 999px;
+  border: 1px solid rgba(39, 174, 96, 0.5);
+  text-align: center;
+}
+
+.bluff-announcement-challenge {
+  font-size: 0.85rem;
+  color: #e74c3c;
+  font-weight: 600;
+  opacity: 0.9;
+}
+
+.bluff-challenge-result {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 1rem;
+  background: linear-gradient(135deg, rgba(192, 57, 43, 0.2) 0%, rgba(201, 162, 39, 0.2) 100%);
+  border-top: 2px solid rgba(192, 57, 43, 0.4);
+  flex-direction: column;
+}
+
+.bluff-challenge-result h4 {
+  margin: 0;
+  font-size: 1.1rem;
+  color: #c9a227;
+}
+
+.bluff-challenge-result .lied {
+  color: #e74c3c;
+}
+
+.bluff-challenge-result .truth {
+  color: #27ae60;
+}
+
+.bluff-challenge-result-pile {
+  font-size: 0.9rem;
+  color: #f5f0e1;
+  opacity: 0.9;
+}
+
 .bluff-pile {
   position: absolute;
   top: 42%;

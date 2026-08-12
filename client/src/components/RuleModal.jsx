@@ -38,27 +38,35 @@ const BHABHI_RULES = [
 const BLUFF_RULES = [
   {
     heading: '🎯 Objective',
-    body: 'Be the FIRST player to completely empty their hand. Play cards face-down while declaring a rank — but others may call your bluff!',
+    body: 'Be the FIRST player to completely empty your hand to earn the highest ranking. The LAST player still holding any cards at the end is officially declared the LOSER!',
   },
   {
-    heading: '🃏 The Rank Cycle',
-    body: 'Players must claim to play cards of the currently required rank, starting from Ace (A) and descending through K, Q, J, 10, 9, 8, 7, 6, 5, 4, 3, 2, then back to A.',
+    heading: '🃏 Initial Setup & Dealing',
+    body: 'A standard 52-card deck (13 ranks: 2 through Ace, 4 suits each) is shuffled and dealt evenly among all active players. Any remainder cards from an uneven deal are placed face-down in the central discard pile at the start to ensure fairness.',
   },
   {
-    heading: '🎴 Making a Play',
-    body: 'On your turn, play 1–4 cards face-down and declare them to be of the required rank. You can be honest OR lie about the actual ranks. After you play, there is a short challenge window.',
+    heading: '1️⃣ Starting a Fresh Round (Declaring a Rank)',
+    body: 'When a new round begins (no rank is currently active), the active player has two options: (A) SKIP — immediately pass turn to the next player without adding cards, or (B) PLAY & DECLARE — play 1–4 cards face-down into the center pile and publicly DECLARE any single card rank of their choice (e.g. "3 Kings"). This sets the active declared rank for the current discard cycle.',
   },
   {
-    heading: '🎭 Calling a Bluff',
-    body: 'Any other player can challenge the claim within the challenge window. The played cards are revealed: if the claimant was LYING (any card does not match the declared rank), THEY must pick up the ENTIRE center pile. If the claimant was honest, the CHALLENGER picks up the pile!',
+    heading: '2️⃣ Subsequent Turns After a Rank is Declared',
+    body: 'Once a rank has been declared, every subsequent player (in turn order) has up to three valid actions: (A) SKIP — pass without modifying the pile, current declared rank stays active, (B) PLAY MATCHING CARDS — add 1–4 face-down cards to the pile, still claiming them to be the CURRENT active declared rank (you cannot change the rank), or (C) CALL BLUFF — challenge the most recent player who played cards into the pile.',
   },
   {
-    heading: '⏭️ Passing the Challenge',
-    body: 'If nobody calls the bluff before the window ends, the play is accepted as legitimate, the cards remain in the center pile, and the turn passes to the next player with the next rank in the cycle.',
+    heading: '🎭 Bluff Challenge Resolution',
+    body: 'When Call Bluff is triggered, the MOST RECENT set of cards added is revealed to all players. The cards are verified against the declared rank of that play: (A) BLUFF CAUGHT (lied) — if ANY card does not match the declared rank, the player who played the false claim MUST collect ALL cards currently in the center pile into their hand. (B) FALSE CHALLENGE (honest play) — if ALL cards match the declared rank, the player who incorrectly called the bluff MUST collect ALL cards currently in the center pile into their hand. In both cases, the pile is emptied and the WINNER of the challenge (the honest side) gets the next turn to start a fresh round and declare a new rank.',
   },
   {
-    heading: '🏆 Winning',
-    body: 'The first player to play their last cards AND survive any resulting challenge (if called and honest, or not challenged at all) wins the game!',
+    heading: '🧹 "All Skip" Pile Clearing Rule',
+    body: 'After a player plays cards and declares a rank, consecutive skip actions from all subsequent players are tracked. If EVERY player who follows in turn order skips, and the turn returns to the ORIGINAL player who placed the last cards AND that original player ALSO skips their consecutive turn — the ENTIRE center pile is PERMANENTLY cleared and removed from play. The turn then immediately passes to the player AFTER the original card-playing player, who can now declare a new rank and start a fresh cycle.',
+  },
+  {
+    heading: '🏆 Rankings: Finishing Order + Loser',
+    body: 'As soon as a player empties their entire hand, they are officially removed from active turn order and assigned a permanent rank: 1st Place (first to empty), 2nd Place, 3rd Place, and so on, in the order they finished. The game terminates when ONLY ONE player remains holding cards — that final player is declared the official LOSER.',
+  },
+  {
+    heading: '✅ Important Rule Reminders',
+    body: 'You can only call bluff on the player who made the most recent play (not on older plays). During a declared-rank cycle you cannot change the declared rank; you must play matching cards, skip, or challenge. Remainder cards at the start always go to the center pile — they are never dealt to any player and count toward the pile if a challenge is resolved on that first cycle.',
   },
 ];
 

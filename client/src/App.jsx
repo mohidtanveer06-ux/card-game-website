@@ -19,12 +19,14 @@ const SCREENS = {
   GAME: 'game',
 };
 
-function EndGameModal({ gameEnded, gameState, myId, isHost, onRematch, onLeave }) {
+function EndGameModal({ gameEnded, _gameState, myId, isHost, onRematch, onLeave }) {
   if (!gameEnded) return null;
 
   const names = gameEnded.playerNames || {};
   const isBhabhi = gameEnded.gameMode === 'bhabhi';
+  const isBluff = gameEnded.gameMode === 'bluff';
   const iAmBhabhi = gameEnded.bhabhi === myId;
+  const iAmLoser = isBluff && gameEnded.loser === myId;
   const iWon = gameEnded.winner === myId;
   const standings = gameEnded.standings || [];
 
@@ -56,6 +58,38 @@ function EndGameModal({ gameEnded, gameState, myId, isHost, onRematch, onLeave }
             {iAmBhabhi && <p style={{ color: '#e74c3c' }}>Better luck next time!</p>}
             {!iAmBhabhi && gameEnded.escapeOrder?.includes(myId) && (
               <p style={{ color: '#27ae60' }}>You got away!</p>
+            )}
+          </>
+        ) : isBluff ? (
+          <>
+            <h2>{iWon ? '🏆 You Win!' : iAmLoser ? '💸 You are the Loser' : 'Game Over'}</h2>
+            {gameEnded.winner && (
+              <p>
+                1st Place (Winner): <strong>{names[gameEnded.winner]}</strong>
+              </p>
+            )}
+            {gameEnded.loser && (
+              <p style={{ color: '#e74c3c' }}>
+                Loser: <strong>{names[gameEnded.loser]}</strong>
+              </p>
+            )}
+            {standings.length > 0 && (
+              <div style={{ marginTop: '0.75rem', textAlign: 'left', display: 'inline-block' }}>
+                <p style={{ fontWeight: 700, marginBottom: '0.35rem' }}>Final Rankings</p>
+                {standings.map((entry) => (
+                  <p key={entry.playerId} style={{ margin: '0.2rem 0', fontSize: '0.9rem' }}>
+                    <strong>{entry.label}</strong>: {entry.name || names[entry.playerId] || 'Player'}
+                    {entry.isLoser ? ' — LOSER' : ` (Score: ${entry.score ?? '-'})`}
+                  </p>
+                ))}
+              </div>
+            )}
+            {iAmLoser && <p style={{ color: '#e74c3c' }}>Don't worry, you'll get them next time!</p>}
+            {!iAmLoser && gameEnded.finishedOrder?.includes(myId) && iWon && (
+              <p style={{ color: '#27ae60' }}>Champion! 🎉</p>
+            )}
+            {!iAmLoser && gameEnded.finishedOrder?.includes(myId) && !iWon && (
+              <p style={{ color: '#27ae60' }}>Great job finishing early!</p>
             )}
           </>
         ) : (
@@ -372,6 +406,9 @@ export default function App() {
           myId={effectiveMyId}
           onPlayCard={socket.playCard}
           onPlayBluff={socket.playBluff}
+          onPlayBluffDeclareRank={socket.playBluffDeclareRank}
+          onPlayBluffMatching={socket.playBluffMatching}
+          onSkipBluffTurn={socket.skipBluffTurn}
           onCallBluff={socket.callBluff}
           onPassBluff={socket.passBluff}
           onCallThullaBluff={socket.callThullaBluff}

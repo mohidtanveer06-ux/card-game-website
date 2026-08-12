@@ -11,7 +11,13 @@ import {
   setRoomGame,
 } from './roomManager.js';
 import { playCard, callThullaBluff } from './games/bhabhiEngine.js';
-import { playBluff, callBluff, passBluff, finishReveal } from './games/bluffEngine.js';
+import {
+  playBluffDeclareRank,
+  playBluffMatching,
+  skipBluffTurn,
+  callBluff,
+  finishReveal,
+} from './games/bluffEngine.js';
 import {
   startGame,
   broadcastGame,
@@ -201,19 +207,63 @@ export function setupSocketHandlers(io) {
       }
     });
 
-    socket.on('game:playBluff', ({ cardIds, declaredRank }, cb) => {
+    socket.on('game:playBluffDeclareRank', ({ cardIds, declaredRank }, cb) => {
       const room = getRoom(roomId);
       if (!room?.game || room.game.type !== 'bluff') {
         cb?.({ error: 'Invalid game state' });
         return;
       }
-      const result = playBluff(room.game, room, playerId, cardIds, declaredRank);
+      const result = playBluffDeclareRank(room.game, room, playerId, cardIds, declaredRank);
       if (result.error) {
         cb?.({ error: result.error });
         socket.emit('game:log', { message: result.error, type: 'error' });
         return;
       }
       cb?.({ ok: true });
+      broadcastGame(io, room);
+      emitLog(io, room, room.game);
+      if (room.game.phase === 'ended') {
+        handleGameEnd(io, room);
+      } else {
+        scheduleBotTurn(io, room, room.game, 300);
+      }
+    });
+
+    socket.on('game:playBluffMatching', ({ cardIds }, cb) => {
+      const room = getRoom(roomId);
+      if (!room?.game || room.game.type !== 'bluff') {
+        cb?.({ error: 'Invalid game state' });
+        return;
+      }
+      const result = playBluffMatching(room.game, room, playerId, cardIds);
+      if (result.error) {
+        cb?.({ error: result.error });
+        socket.emit('game:log', { message: result.error, type: 'error' });
+        return;
+      }
+      cb?.({ ok: true });
+      broadcastGame(io, room);
+      emitLog(io, room, room.game);
+      if (room.game.phase === 'ended') {
+        handleGameEnd(io, room);
+      } else {
+        scheduleBotTurn(io, room, room.game, 300);
+      }
+    });
+
+    socket.on('game:skipBluffTurn', (_payload, cb) => {
+      const room = getRoom(roomId);
+      if (!room?.game || room.game.type !== 'bluff') {
+        cb?.({ error: 'Invalid game state' });
+        return;
+      }
+      const result = skipBluffTurn(room.game, room);
+      if (result.error) {
+        cb?.({ error: result.error });
+        socket.emit('game:log', { message: result.error, type: 'error' });
+        return;
+      }
+      cb?.({ ok: true, pileCleared: !!result.pileCleared });
       broadcastGame(io, room);
       emitLog(io, room, room.game);
       if (room.game.phase === 'ended') {
@@ -245,23 +295,6 @@ export function setupSocketHandlers(io) {
       }
     });
 
-    socket.on('game:passBluff', (_payload, cb) => {
-      const room = getRoom(roomId);
-      if (!room?.game || room.game.type !== 'bluff') {
-        cb?.({ error: 'Invalid game state' });
-        return;
-      }
-      const result = passBluff(room.game);
-      if (result.error) {
-        cb?.({ error: result.error });
-        return;
-      }
-      cb?.({ ok: true });
-      broadcastGame(io, room);
-      emitLog(io, room, room.game);
-      scheduleBotTurn(io, room, room.game, 300);
-    });
-
     socket.on('game:finishReveal', (_payload, cb) => {
       const room = getRoom(roomId);
       if (!room?.game) {
@@ -272,7 +305,11 @@ export function setupSocketHandlers(io) {
         const result = finishReveal(room.game);
         if (!result.error) {
           broadcastGame(io, room);
-          scheduleBotTurn(io, room, room.game, 300);
+          if (room.game.phase === 'ended') {
+            handleGameEnd(io, room);
+          } else {
+            scheduleBotTurn(io, room, room.game, 300);
+          }
         }
       }
       cb?.({ ok: true });

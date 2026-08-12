@@ -13,15 +13,17 @@ import {
 import {
   createBluffGame,
   attachPlayerNames as attachBluffNames,
-  playBluff,
+  playBluffDeclareRank,
+  playBluffMatching,
+  skipBluffTurn,
   callBluff,
-  passBluff,
+  finishReveal,
   autoPlayBluff,
-  chooseBluffBotPlay,
+  getBluffBotPlay,
   shouldBotCallBluff,
   sanitizeBluffState,
   bluffCurrentPlayer,
-  finishReveal,
+  buildBluffStandings,
 } from '../games/bluffEngine.js';
 import { sanitizeRoom } from '../roomManager.js';
 
@@ -131,30 +133,26 @@ function handleBluffBot(io, room, game) {
     return;
   }
 
-  if (game.phase === 'challengeWindow') {
-    const candidates = room.players.filter(
-      (p) =>
-        p.isBot &&
-        p.id !== game.lastPlay?.playerId &&
-        (game.hands[p.id]?.length || 0) > 0
-    );
-    if (candidates.length > 0 && shouldBotCallBluff(game)) {
-      const bot = candidates[Math.floor(Math.random() * candidates.length)];
-      callBluff(game, room, bot.id);
-      broadcastGame(io, room);
-      emitLog(io, room, game);
-      if (game.phase === 'ended') {
-        handleGameEnd(io, room);
-        return;
-      }
-      scheduleRevealFinish(io, room, game);
-      scheduleBotTurn(io, room, game, Math.max(1800, (game.revealEndsAt || Date.now() + 1500) - Date.now() + 300));
-      return;
-    }
-    passBluff(game);
+  const challengers = room.players.filter(
+    (p) =>
+      p.isBot &&
+      !!game.lastPlay &&
+      game.lastPlay.playerId !== p.id &&
+      !!game.currentDeclaredRank &&
+      !game.finishedOrder?.includes(p.id) &&
+      (game.hands[p.id]?.length || 0) > 0
+  );
+  if (challengers.length > 0 && shouldBotCallBluff(game)) {
+    const bot = challengers[Math.floor(Math.random() * challengers.length)];
+    callBluff(game, room, bot.id);
     broadcastGame(io, room);
     emitLog(io, room, game);
-    scheduleBotTurn(io, room, game, 600);
+    if (game.phase === 'ended') {
+      handleGameEnd(io, room);
+      return;
+    }
+    scheduleRevealFinish(io, room, game);
+    scheduleBotTurn(io, room, game, Math.max(1800, (game.revealEndsAt || Date.now() + 1500) - Date.now() + 300));
     return;
   }
 
@@ -165,15 +163,25 @@ function handleBluffBot(io, room, game) {
     return;
   }
 
-  const move = chooseBluffBotPlay(game, currentId);
+  const move = getBluffBotPlay(game, currentId);
   if (move) {
-    playBluff(game, room, currentId, move.cardIds, move.declaredRank);
-    broadcastGame(io, room);
-    emitLog(io, room, game);
-    if (game.phase === 'ended') {
-      handleGameEnd(io, room);
-      return;
+    if (move.action === 'skip') {
+      skipBluffTurn(game, room);
+    } else if (move.action === 'declare') {
+      playBluffDeclareRank(game, room, currentId, move.cardIds, move.declaredRank);
+    } else if (move.action === 'match') {
+      playBluffMatching(game, room, currentId, move.cardIds);
+    } else {
+      autoPlayBluff(game, room, currentId);
     }
+  } else {
+    autoPlayBluff(game, room, currentId);
+  }
+  broadcastGame(io, room);
+  emitLog(io, room, game);
+  if (game.phase === 'ended') {
+    handleGameEnd(io, room);
+    return;
   }
   scheduleBotTurn(io, room, game, 800);
 }
@@ -201,13 +209,16 @@ function scheduleTurnTimeout(io, room, game) {
       const pid = bhabhiCurrentPlayer(game);
       autoPlayBhabhi(game, room, pid);
     } else if (game.type === 'bluff') {
-      if (game.phase === 'challengeWindow') {
-        passBluff(game);
-      } else if (game.phase === 'reveal') {
+      if (game.phase === 'reveal') {
         finishReveal(game);
       } else {
         const pid = bluffCurrentPlayer(game);
-        autoPlayBluff(game, room, pid);
+        const player = room.players.find((p) => p.id === pid);
+        if (player?.isBot) {
+          autoPlayBluff(game, room, pid);
+        } else {
+          skipBluffTurn(game, room);
+        }
       }
     }
 
@@ -260,9 +271,15 @@ function handleGameEnd(io, room) {
     gameMode: room.gameMode,
     winner: game.winner,
     bhabhi: game.bhabhi,
+    loser: game.loser,
     escapeOrder: game.escapeOrder || [],
+    finishedOrder: game.finishedOrder || [],
     playerNames: game.playerNames,
-    standings: room.gameMode === 'bhabhi' ? buildBhabhiStandings(game, room) : [],
+    standings: room.gameMode === 'bhabhi'
+      ? buildBhabhiStandings(game, room)
+      : room.gameMode === 'bluff'
+      ? buildBluffStandings(game, room)
+      : [],
   };
 
   io.to(room.id).emit('room:state', sanitizeRoom(room));
