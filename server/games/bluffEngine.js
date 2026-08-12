@@ -129,6 +129,18 @@ function advanceTurnIndex(game, fromIndex) {
   return fromIndex;
 }
 
+function findNextActiveIndex(game, startIndex) {
+  let idx = startIndex;
+  for (let i = 0; i < game.turnOrder.length; i++) {
+    idx = (idx + 1) % game.turnOrder.length;
+    const pid = game.turnOrder[idx];
+    if (!game.finishedOrder.includes(pid) && (game.hands[pid]?.length || 0) > 0) {
+      return idx;
+    }
+  }
+  return startIndex;
+}
+
 function checkFinished(game, room) {
   const active = activePlayers(game);
   for (const pid of active) {
@@ -176,17 +188,10 @@ export function skipBluffTurn(game, room) {
       game.totalCleared = (game.totalCleared || 0) + clearedCount;
       game.centerPile = [];
       game.currentDeclaredRank = null;
+      const originalPlayerId = game.lastPlay?.playerId || playerId;
       game.lastPlay = null;
-      const originalPlayerId = getCurrentPlayerId(game);
-      let nextIdx = (game.turnOrder.indexOf(originalPlayerId) + 1) % game.turnOrder.length;
-      for (let i = 0; i < game.turnOrder.length; i++) {
-        const pid = game.turnOrder[nextIdx];
-        if (!game.finishedOrder.includes(pid) && (game.hands[pid]?.length || 0) > 0) {
-          break;
-        }
-        nextIdx = (nextIdx + 1) % game.turnOrder.length;
-      }
-      game.currentTurnIndex = nextIdx;
+      const originalIndex = game.turnOrder.indexOf(originalPlayerId);
+      game.currentTurnIndex = findNextActiveIndex(game, originalIndex);
       game.consecutiveSkips = 0;
       game.logs.push({
         message: `All players skipped! ${clearedCount} card(s) permanently cleared from the pile. New round.`,
