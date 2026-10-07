@@ -26,7 +26,15 @@
     </noscript>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <main
+        role="status"
+        style="min-height:100vh;display:grid;place-content:center;gap:0.75rem;text-align:center;padding:2rem;background:linear-gradient(145deg,#101827,#1a1a2e 55%,#0d3328);color:#f5f0e1;font:500 1rem Inter,Arial,sans-serif"
+      >
+        <strong style="color:#c9a227;font:700 1.6rem Cinzel,Georgia,serif">MT Card Game</strong>
+        <span>Loading the game…</span>
+      </main>
+    </div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

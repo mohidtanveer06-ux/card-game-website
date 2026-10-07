@@ -44,14 +44,25 @@ const SOUND_PATTERNS = {
   ],
 };
 
+function loadMutedPreference() {
+  try {
+    return localStorage.getItem('mt-cards-muted') === 'true';
+  } catch (error) {
+    console.error('Unable to read the game audio preference.', error);
+    return false;
+  }
+}
+
 export function useSounds() {
   const audioContextRef = useRef(null);
-  const [muted, setMuted] = useState(() => {
-    return localStorage.getItem('mt-cards-muted') === 'true';
-  });
+  const [muted, setMuted] = useState(loadMutedPreference);
 
   useEffect(() => {
-    localStorage.setItem('mt-cards-muted', String(muted));
+    try {
+      localStorage.setItem('mt-cards-muted', String(muted));
+    } catch (error) {
+      console.error('Unable to save the game audio preference.', error);
+    }
   }, [muted]);
 
   const play = useCallback(
