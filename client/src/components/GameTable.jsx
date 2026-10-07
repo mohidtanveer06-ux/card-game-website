@@ -80,13 +80,14 @@ export default function GameTable({
       }
 
       if (!gameState.isMyTurn || gameState.phase !== 'playing') return;
+      playSound?.('select');
       setSelectedCards((prev) => {
         if (prev.includes(cardId)) return prev.filter((id) => id !== cardId);
         if (prev.length >= 4) return prev;
         return [...prev, cardId];
       });
     },
-    [gameState, onPlayCard]
+    [gameState, onPlayCard, playSound]
   );
 
   const handleDeclareAndPlay = useCallback(() => {

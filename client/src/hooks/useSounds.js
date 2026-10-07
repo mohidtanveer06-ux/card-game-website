@@ -1,19 +1,51 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 
-const SOUNDS = {
-  shuffle: '/sounds/shuffle.mp3',
-  deal: '/sounds/deal.mp3',
-  cardPlay: '/sounds/card-play.mp3',
-  thullaSweep: '/sounds/thulla-sweep.mp3',
-  bluffCall: '/sounds/bluff-call.mp3',
-  win: '/sounds/win.mp3',
-  lose: '/sounds/lose.mp3',
-  tick: '/sounds/tick.mp3',
-  notification: '/sounds/notification.mp3',
+const SOUND_PATTERNS = {
+  intro: [
+    { frequency: 523.25, delay: 0, duration: 0.2, type: 'sine' },
+    { frequency: 659.25, delay: 0.13, duration: 0.22, type: 'sine' },
+    { frequency: 783.99, delay: 0.27, duration: 0.38, type: 'sine' },
+  ],
+  shuffle: [
+    { frequency: 380, delay: 0, duration: 0.07, type: 'triangle' },
+    { frequency: 510, delay: 0.08, duration: 0.07, type: 'triangle' },
+    { frequency: 430, delay: 0.16, duration: 0.09, type: 'triangle' },
+  ],
+  deal: [{ frequency: 520, delay: 0, duration: 0.09, type: 'triangle' }],
+  cardPlay: [
+    { frequency: 220, delay: 0, duration: 0.07, type: 'triangle' },
+    { frequency: 620, delay: 0.035, duration: 0.09, type: 'sine' },
+  ],
+  select: [{ frequency: 740, delay: 0, duration: 0.055, type: 'sine' }],
+  thullaSweep: [
+    { frequency: 740, delay: 0, duration: 0.13, type: 'sawtooth' },
+    { frequency: 520, delay: 0.1, duration: 0.15, type: 'sawtooth' },
+    { frequency: 310, delay: 0.21, duration: 0.25, type: 'triangle' },
+  ],
+  bluffCall: [
+    { frequency: 330, delay: 0, duration: 0.13, type: 'square' },
+    { frequency: 247, delay: 0.13, duration: 0.2, type: 'triangle' },
+  ],
+  win: [
+    { frequency: 523.25, delay: 0, duration: 0.16, type: 'sine' },
+    { frequency: 659.25, delay: 0.13, duration: 0.16, type: 'sine' },
+    { frequency: 783.99, delay: 0.26, duration: 0.16, type: 'sine' },
+    { frequency: 1046.5, delay: 0.39, duration: 0.35, type: 'sine' },
+  ],
+  lose: [
+    { frequency: 392, delay: 0, duration: 0.2, type: 'triangle' },
+    { frequency: 293.66, delay: 0.18, duration: 0.24, type: 'triangle' },
+    { frequency: 196, delay: 0.4, duration: 0.38, type: 'sine' },
+  ],
+  tick: [{ frequency: 880, delay: 0, duration: 0.04, type: 'sine' }],
+  notification: [
+    { frequency: 660, delay: 0, duration: 0.11, type: 'sine' },
+    { frequency: 880, delay: 0.12, duration: 0.16, type: 'sine' },
+  ],
 };
 
 export function useSounds() {
-  const audioRef = useRef({});
+  const audioContextRef = useRef(null);
   const [muted, setMuted] = useState(() => {
     return localStorage.getItem('mt-cards-muted') === 'true';
   });
@@ -22,22 +54,47 @@ export function useSounds() {
     localStorage.setItem('mt-cards-muted', String(muted));
   }, [muted]);
 
-  useEffect(() => {
-    Object.entries(SOUNDS).forEach(([key, src]) => {
-      const audio = new Audio(src);
-      audio.volume = 0.5;
-      audio.preload = 'auto';
-      audioRef.current[key] = audio;
-    });
-  }, []);
-
   const play = useCallback(
     (name) => {
       if (muted) return;
-      const audio = audioRef.current[name];
-      if (!audio) return;
-      audio.currentTime = 0;
-      audio.play().catch(() => {});
+      const pattern = SOUND_PATTERNS[name];
+      if (!pattern) return;
+
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContextClass) {
+        console.error('Web Audio is not supported in this browser.');
+        return;
+      }
+
+      const context = audioContextRef.current || new AudioContextClass();
+      audioContextRef.current = context;
+
+      const playPattern = () => {
+        pattern.forEach(({ frequency, delay, duration, type }) => {
+          const oscillator = context.createOscillator();
+          const volume = context.createGain();
+          const startTime = context.currentTime + delay;
+          const endTime = startTime + duration;
+
+          oscillator.type = type;
+          oscillator.frequency.setValueAtTime(frequency, startTime);
+          volume.gain.setValueAtTime(0.0001, startTime);
+          volume.gain.exponentialRampToValueAtTime(0.16, startTime + 0.015);
+          volume.gain.exponentialRampToValueAtTime(0.0001, endTime);
+          oscillator.connect(volume);
+          volume.connect(context.destination);
+          oscillator.start(startTime);
+          oscillator.stop(endTime);
+        });
+      };
+
+      if (context.state === 'suspended') {
+        context.resume().then(playPattern).catch((error) => {
+          console.error('Unable to resume game audio.', error);
+        });
+      } else {
+        playPattern();
+      }
     },
     [muted]
   );
@@ -46,5 +103,3 @@ export function useSounds() {
 
   return { play, muted, toggleMute };
 }
-
-export { SOUNDS };

@@ -96,6 +96,97 @@
   margin-bottom: 0.5rem;
 }
 
+.intro-deck {
+  position: relative;
+  width: 180px;
+  height: 112px;
+  margin: 0 auto 0.5rem;
+  perspective: 600px;
+}
+
+.intro-deck::before {
+  content: '';
+  position: absolute;
+  inset: 12px 28px;
+  border-radius: 50%;
+  background: rgba(201, 162, 39, 0.22);
+  filter: blur(22px);
+  animation: intro-glow 2.4s ease-in-out infinite alternate;
+}
+
+.intro-card {
+  position: absolute;
+  top: 7px;
+  left: 57px;
+  display: flex;
+  width: 66px;
+  height: 94px;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #dfc66d;
+  border-radius: 9px;
+  background: linear-gradient(145deg, #f5f0e1, #d9cda8);
+  box-shadow: 0 7px 18px rgba(0, 0, 0, 0.4);
+  font: 700 2rem 'Cinzel', serif;
+  animation: intro-card-in 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) both, intro-float 2.6s 0.8s ease-in-out infinite;
+}
+
+.intro-card-left {
+  color: #1a1a2e;
+  animation-delay: 0s, 0.8s;
+  --card-angle: -24deg;
+  --card-x: -48px;
+}
+
+.intro-card-center {
+  z-index: 1;
+  color: #f5f0e1;
+  background: linear-gradient(145deg, #1a3a5c, #0d2240);
+  font-size: 1.25rem;
+  animation-delay: 0.12s, 0.92s;
+  --card-angle: 0deg;
+  --card-x: 0px;
+}
+
+.intro-card-right {
+  color: #c0392b;
+  animation-delay: 0.24s, 1.04s;
+  --card-angle: 24deg;
+  --card-x: 48px;
+}
+
+@keyframes intro-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(-48px) translateX(var(--card-x)) rotate(var(--card-angle)) scale(0.7);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) translateX(var(--card-x)) rotate(var(--card-angle)) scale(1);
+  }
+}
+
+@keyframes intro-float {
+  0%,
+  100% {
+    margin-top: 0;
+  }
+  50% {
+    margin-top: -5px;
+  }
+}
+
+@keyframes intro-glow {
+  from {
+    opacity: 0.45;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1.1);
+  }
+}
+
 .avatar-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);

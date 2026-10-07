@@ -287,9 +287,22 @@ export default function App() {
     return (
       <div className="screen-container">
         <div className="card-panel" style={{ textAlign: 'center' }}>
-          <h1 className="splash-title">MT Cards Online</h1>
+          <div className="intro-deck" aria-hidden="true">
+            <span className="intro-card intro-card-left">♠</span>
+            <span className="intro-card intro-card-center">MT</span>
+            <span className="intro-card intro-card-right">♥</span>
+          </div>
+          <h1 className="splash-title">MT Card Game</h1>
           <p style={{ opacity: 0.8, marginBottom: '2rem' }}>Bhabhi Thulla & Bluff — play with friends online</p>
-          <button type="button" className="btn-primary" style={{ width: '100%' }} onClick={() => setScreen(SCREENS.PROFILE)}>
+          <button
+            type="button"
+            className="btn-primary"
+            style={{ width: '100%' }}
+            onClick={() => {
+              play('intro');
+              setScreen(SCREENS.PROFILE);
+            }}
+          >
             Play Now
           </button>
           <div style={{ marginTop: '1rem' }}>
